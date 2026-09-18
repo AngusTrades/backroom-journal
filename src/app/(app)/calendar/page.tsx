@@ -218,12 +218,13 @@ export default async function CalendarPage({
       ) : (
         <div className="card card-pad">
           <div className="cal-scroll-wrap">
-            <div className="cal-grid" style={{ marginBottom: 8 }}>
+            <div className="cal-grid cal-grid-weekly" style={{ marginBottom: 8 }}>
               {WEEKDAY_LABELS.map((w) => (
                 <div key={w} className="cal-weekday">
                   {w}
                 </div>
               ))}
+              <div className="cal-weekday">Week</div>
             </div>
 
             <PnlCalendarGrid

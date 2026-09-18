@@ -1482,6 +1482,75 @@ td.ev-fee-cell {
   color: var(--text-mute);
 }
 
+/* TopstepX-style weekly rollup column, tacked on as an 8th grid column at
+   the end of each row (only the PnL Calendar's own grid opts into this via
+   .cal-grid-weekly — the News page reuses plain .cal-grid at 7 columns and
+   is untouched by it). */
+.cal-grid.cal-grid-weekly {
+  grid-template-columns: repeat(7, 1fr) minmax(84px, 0.9fr);
+}
+.cal-week-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 78px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 7px 6px;
+  gap: 2px;
+}
+.cal-week-summary.current {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 1px var(--accent-line) inset;
+}
+.cal-week-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+}
+.cal-week-total {
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 2px;
+}
+.cal-week-total.good {
+  color: var(--good);
+}
+.cal-week-total.bad {
+  color: var(--bad);
+}
+.cal-week-total.flat {
+  color: var(--neutral);
+}
+.cal-week-payout {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent-strong);
+  margin-top: 2px;
+}
+.cal-week-count {
+  font-size: 9.5px;
+  color: var(--text-mute);
+  margin-top: 1px;
+}
+
+/* Full vs. compact ($11,988 vs $12k) renderings of the same $ figure in the
+   PnL calendar — see ResponsiveUsdMagnitude in PnlCalendarGrid.tsx. Desktop
+   shows the full amount; the phone breakpoint below swaps to compact so
+   five-figure numbers don't force day/week cells to wrap or overflow. */
+.amt-compact {
+  display: none;
+}
+
 /* ---------------------------------------------------------------------
    Privacy mode — hides dollar figures site-wide (streaming / screen
    sharing). Toggled via the sidebar button, persisted in localStorage,
@@ -1724,6 +1793,15 @@ html[data-privacy="on"] .money::after {
   }
   .cal-scroll-wrap > .cal-grid {
     min-width: 560px;
+  }
+  .cal-scroll-wrap > .cal-grid.cal-grid-weekly {
+    min-width: 660px;
+  }
+  .amt-full {
+    display: none;
+  }
+  .amt-compact {
+    display: inline;
   }
 }
 
