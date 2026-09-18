@@ -1,0 +1,1 @@
+ALTER TABLE "trades" ADD COLUMN "pnl_usd" numeric(14, 2);

@@ -1,0 +1,1 @@
+ALTER TABLE "entry_models" ALTER COLUMN "user_id" SET NOT NULL;

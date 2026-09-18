@@ -1,0 +1,21 @@
+{
+  "_comment": "Copy this file to copy-engine.config.json (already git-ignored) and fill in real values. Never commit the real file — it holds live broker login credentials. Key each entry by the Tradovate Account ID you set on that account's page in the app (Accounts → an account → Copytrader / Tradovate Sync).",
+  "credentials": {
+    "REPLACE_WITH_LEADER_TRADOVATE_ACCOUNT_ID": {
+      "name": "your-tradovate-username",
+      "password": "your-tradovate-password",
+      "appId": "your-app-id",
+      "appVersion": "1.0",
+      "cid": "your-partner-api-client-id",
+      "sec": "your-partner-api-client-secret"
+    },
+    "REPLACE_WITH_A_FOLLOWER_TRADOVATE_ACCOUNT_ID": {
+      "name": "the-prop-firm-tradovate-username-for-this-account",
+      "password": "its-password",
+      "appId": "your-app-id",
+      "appVersion": "1.0",
+      "cid": "your-partner-api-client-id",
+      "sec": "your-partner-api-client-secret"
+    }
+  }
+}
