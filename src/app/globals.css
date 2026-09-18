@@ -1480,12 +1480,20 @@ td.ev-fee-cell {
    applied to <html data-privacy="on"> before first paint (see
    PrivacyScript) to avoid a flash of visible numbers.
    --------------------------------------------------------------------- */
-.money {
-  transition: filter 0.15s ease;
-}
+/* Uses color:transparent + an absolutely-positioned "*****" overlay rather
+   than a blur filter. text-align is inherited, so the overlay lines up
+   correctly whether .money sits in a left-aligned KPI tile or a
+   right-aligned table cell (td.num) with no extra per-context rules. */
 html[data-privacy="on"] .money {
-  filter: blur(7px);
+  position: relative;
+  color: transparent !important;
   user-select: none;
+}
+html[data-privacy="on"] .money::after {
+  content: "*****";
+  position: absolute;
+  inset: 0;
+  color: var(--text-soft);
 }
 
 /* ---------------------------------------------------------------------- */

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-// Blurs every dollar figure on the site (anything wrapped in a `.money`
-// span) — for streaming or screen-sharing without doxxing your account
-// balance. Purely a client-side display toggle: nothing is sent to the
-// server, and it's remembered per-browser via localStorage.
+// Masks every dollar figure on the site (anything wrapped in a `.money`
+// span) with "*****" — for streaming or screen-sharing without doxxing
+// your account balance. Purely a client-side display toggle: nothing is
+// sent to the server, and it's remembered per-browser via localStorage.
 export function PrivacyToggle() {
   const [hidden, setHidden] = useState(false);
 
