@@ -224,7 +224,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           Withdrew money from this account? Log it here — it shows up on Budgeting &amp; Tax, pulls this account&apos;s
           current balance down by the gross amount, and marks the day on the PnL calendar.
         </div>
-        <form action={createPayout} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+        <form action={createPayout} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
           <input type="hidden" name="accountId" value={account.id} />
           <input type="hidden" name="returnTo" value={`/accounts/${account.id}`} />
           <div className="field">

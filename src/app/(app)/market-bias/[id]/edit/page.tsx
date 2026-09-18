@@ -50,7 +50,7 @@ export default async function EditSessionLogPage({
       </div>
 
       <div className="card p-5">
-        <form action={updateSessionLog} className="grid grid-cols-2 gap-3.5">
+        <form action={updateSessionLog} className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
           <input type="hidden" name="logId" value={log.id} />
           <input type="hidden" name="returnTo" value={returnTo} />
           <div className="field">

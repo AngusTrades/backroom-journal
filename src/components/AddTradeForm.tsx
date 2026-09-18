@@ -69,7 +69,7 @@ export function AddTradeForm({
     <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1fr]">
       <div className="card p-5">
         <h3>Trade details</h3>
-        <div className="grid grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
           <div className="field">
             <label htmlFor="date">Date &amp; time</label>
             <input

@@ -55,7 +55,7 @@ export default async function InviteCodesPage() {
           Leave the code blank to auto-generate one. Leave max uses blank for unlimited (good for one code shared in
           Discord); set it to 1 for a single-use invite for one specific person.
         </div>
-        <form action={createInviteCode} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+        <form action={createInviteCode} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
           <div className="field">
             <label>Code (optional)</label>
             <input type="text" name="code" placeholder="auto-generated if blank" className="mono" />

@@ -47,7 +47,7 @@ export function TaxEntryForm({ kind, initialCategories }: { kind: "income" | "ex
   const idPrefix = `tax-${kind}`;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
       <input type="hidden" name="kind" value={kind} />
       <div className="field">
         <label htmlFor={`${idPrefix}-date`}>Date</label>

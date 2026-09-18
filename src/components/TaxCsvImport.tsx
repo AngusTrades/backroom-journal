@@ -184,7 +184,7 @@ export function TaxCsvImport({
             <span className="mono">{file.name}</span> — {dataRows.length} row{dataRows.length === 1 ? "" : "s"} found
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
             <div className="field">
               <label>Import as</label>
               <select

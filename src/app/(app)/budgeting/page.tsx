@@ -220,7 +220,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
 
           <div className="card card-pad no-print">
             <h3>Log a Payout</h3>
-            <form action={createPayout} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+            <form action={createPayout} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
               <div className="field">
                 <label>Date</label>
                 <input type="date" name="date" required />

@@ -116,6 +116,31 @@ export default async function NewsPage({
 
   const tableEvents = selectedDay ? (eventsByDay.get(selectedDay) ?? []) : monthEvents;
 
+  // Phone-only replacement for the day-grid calendar above — a flat,
+  // ForexFactory-style list: just the date, then everything coming out that
+  // date stacked below it. Reuses tableEvents (so it respects the same
+  // whole-month/single-day selection as the grid and the detail table did)
+  // grouped by NY calendar day and sorted chronologically within each day.
+  const mobileGroups: { key: string; label: string; events: typeof tableEvents }[] = [];
+  {
+    const sorted = [...tableEvents].sort((a, b) => {
+      const ad = nyDateOnly(a.date, a.timeMinutes).getTime();
+      const bd = nyDateOnly(b.date, b.timeMinutes).getTime();
+      if (ad !== bd) return ad - bd;
+      return (a.timeMinutes ?? -1) - (b.timeMinutes ?? -1);
+    });
+    for (const ev of sorted) {
+      const dayDate = nyDateOnly(ev.date, ev.timeMinutes);
+      const key = format(dayDate, "yyyy-MM-dd");
+      const last = mobileGroups[mobileGroups.length - 1];
+      if (last && last.key === key) {
+        last.events.push(ev);
+      } else {
+        mobileGroups.push({ key, label: formatEventDate(dayDate), events: [ev] });
+      }
+    }
+  }
+
   function monthHref(d: Date) {
     const params = new URLSearchParams();
     params.set("month", monthParam(d));
@@ -267,7 +292,7 @@ export default async function NewsPage({
         </div>
       </div>
 
-      <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <div className="card card-pad news-calendar-card" style={{ marginBottom: 20 }}>
         <div className="cal-scroll-wrap">
         <div className="cal-grid" style={{ marginBottom: 8 }}>
           {WEEKDAY_LABELS.map((w) => (
@@ -337,6 +362,30 @@ export default async function NewsPage({
           </span>
           <span>Click a day to see just that day&apos;s events below.</span>
         </div>
+      </div>
+
+      <div className="card card-pad news-mobile-list" style={{ marginBottom: 20 }}>
+        {mobileGroups.length === 0 ? (
+          <div className="sub" style={{ textAlign: "center", padding: "16px 0", margin: 0 }}>
+            {isAdmin
+              ? "No high/medium impact events for this range yet — click Sync Now above."
+              : "No high/medium impact events for this range yet."}
+          </div>
+        ) : (
+          mobileGroups.map((group) => (
+            <div key={group.key} className="news-day-group">
+              <div className="news-day-header">{group.label}</div>
+              {group.events.map((ev) => (
+                <div key={ev.id} className="news-event-row">
+                  <span className={`news-event-dot ${ev.impact}`} />
+                  <span className="news-event-time">{nyTimeLabel(ev.date, ev.timeMinutes, ev.time)}</span>
+                  <span className="news-event-currency">{ev.country}</span>
+                  <span className="news-event-title">{abbreviateNewsTitle(ev.title)}</span>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
       </div>
 
       <div className="sub" style={{ marginBottom: 8 }}>

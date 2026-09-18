@@ -121,7 +121,7 @@ export default async function MarketBiasPage({
           One entry per day per session — re-entering the same date and session just updates it, so
           it&apos;s safe to fix a mistake by logging it again.
         </div>
-        <form action={upsertSessionLog} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-5">
+        <form action={upsertSessionLog} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-5">
           <div className="field">
             <label htmlFor="date">Date</label>
             <input type="date" id="date" name="date" defaultValue={new Date().toISOString().slice(0, 10)} required />
@@ -247,7 +247,7 @@ export default async function MarketBiasPage({
           history regardless of the period filter above, since this needs as many days as possible
           to mean anything.
         </div>
-        <form method="GET" className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-5">
+        <form method="GET" className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-5">
           {period !== "lifetime" && <input type="hidden" name="period" value={period} />}
           <div className="field">
             <label htmlFor="corrTrigger">When this session</label>
@@ -313,7 +313,7 @@ export default async function MarketBiasPage({
               <div className="sub">None of those days have a logged {SESSION_LABEL[corrTarget]} entry yet.</div>
             ) : (
               <>
-                <div className="grid grid-cols-3" style={{ gap: 12 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12 }}>
                   {(
                     [
                       { label: "Reversed", value: correlation.reversed, color: "var(--good)" },

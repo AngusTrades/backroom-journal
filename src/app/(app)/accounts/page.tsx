@@ -189,7 +189,7 @@ export default async function AccountsPage() {
 
       <div className="card card-pad" id="add-account" style={{ marginTop: 20 }}>
         <h3>Add Account</h3>
-        <form action={createAccount} className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
+        <form action={createAccount} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-3">
           <div className="field">
             <label>Account Name</label>
             <input type="text" name="name" placeholder="e.g. Bulenox 50k" required />
