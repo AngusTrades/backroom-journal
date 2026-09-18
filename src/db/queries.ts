@@ -477,7 +477,11 @@ async function breakdownByJoin(
 // calendar range (a month plus the lead/trail days from adjacent months
 // needed to fill out the grid). Callers pass account ids already scoped to
 // the current member (via getFormOptions(userId).accounts) so no separate
-// userId parameter is needed here.
+// userId parameter is needed here — but accountIds is REQUIRED (not
+// optional) specifically so an "all accounts" selection can never turn into
+// "no account filter at all", which used to mean every member's trades
+// table-wide. An empty array means "this member has no accounts (or picked
+// none)" and returns nothing, never "everyone's".
 // ---------------------------------------------------------------------------
 export type DailyPnl = {
   tradeCount: number;
@@ -486,11 +490,8 @@ export type DailyPnl = {
   totalRr: number;
 };
 
-export async function getPnlCalendarTrades(rangeStart: Date, rangeEnd: Date, accountIds?: string[]) {
-  const conditions = [gte(trades.date, rangeStart), lt(trades.date, rangeEnd)];
-  if (accountIds && accountIds.length > 0) {
-    conditions.push(inArray(trades.accountId, accountIds));
-  }
+export async function getPnlCalendarTrades(rangeStart: Date, rangeEnd: Date, accountIds: string[]) {
+  if (accountIds.length === 0) return [];
   return db
     .select({
       date: trades.date,
@@ -499,18 +500,15 @@ export async function getPnlCalendarTrades(rangeStart: Date, rangeEnd: Date, acc
       outcome: trades.outcome,
     })
     .from(trades)
-    .where(and(...conditions));
+    .where(and(gte(trades.date, rangeStart), lt(trades.date, rangeEnd), inArray(trades.accountId, accountIds)));
 }
 
-export async function getPnlCalendarPayouts(rangeStart: Date, rangeEnd: Date, accountIds?: string[]) {
-  const conditions = [gte(payouts.date, rangeStart), lt(payouts.date, rangeEnd)];
-  if (accountIds && accountIds.length > 0) {
-    conditions.push(inArray(payouts.accountId, accountIds));
-  }
+export async function getPnlCalendarPayouts(rangeStart: Date, rangeEnd: Date, accountIds: string[]) {
+  if (accountIds.length === 0) return [];
   return db
     .select({ date: payouts.date, grossAmount: payouts.grossAmount })
     .from(payouts)
-    .where(and(...conditions));
+    .where(and(gte(payouts.date, rangeStart), lt(payouts.date, rangeEnd), inArray(payouts.accountId, accountIds)));
 }
 
 export function groupPayoutsByDay(rows: { date: Date; grossAmount: string }[]): Map<string, number> {

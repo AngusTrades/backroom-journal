@@ -78,8 +78,8 @@ export default async function CalendarPage({
     selectedIds.length === 0
       ? [[], [], await getNewsEventsForRange(gridStart, rangeEnd)]
       : await Promise.all([
-          getPnlCalendarTrades(gridStart, rangeEnd, allSelected ? undefined : selectedIds),
-          getPnlCalendarPayouts(gridStart, rangeEnd, allSelected ? undefined : selectedIds),
+          getPnlCalendarTrades(gridStart, rangeEnd, selectedIds),
+          getPnlCalendarPayouts(gridStart, rangeEnd, selectedIds),
           getNewsEventsForRange(gridStart, rangeEnd),
         ]);
   const byDay = groupTradesByDay(rows);
@@ -217,23 +217,25 @@ export default async function CalendarPage({
         </div>
       ) : (
         <div className="card card-pad">
-          <div className="cal-grid" style={{ marginBottom: 8 }}>
-            {WEEKDAY_LABELS.map((w) => (
-              <div key={w} className="cal-weekday">
-                {w}
-              </div>
-            ))}
-          </div>
+          <div className="cal-scroll-wrap">
+            <div className="cal-grid" style={{ marginBottom: 8 }}>
+              {WEEKDAY_LABELS.map((w) => (
+                <div key={w} className="cal-weekday">
+                  {w}
+                </div>
+              ))}
+            </div>
 
-          <PnlCalendarGrid
-            days={days.map((day) => {
-              const key = format(day, "yyyy-MM-dd");
-              return { key, date: day.getDate(), inMonth: isSameMonth(day, monthDate), isToday: isToday(day) };
-            })}
-            byDay={Object.fromEntries(byDay) as Record<string, CalDayInfo>}
-            payoutByDay={Object.fromEntries(payoutByDay)}
-            newsByDay={Object.fromEntries(newsByDay)}
-          />
+            <PnlCalendarGrid
+              days={days.map((day) => {
+                const key = format(day, "yyyy-MM-dd");
+                return { key, date: day.getDate(), inMonth: isSameMonth(day, monthDate), isToday: isToday(day) };
+              })}
+              byDay={Object.fromEntries(byDay) as Record<string, CalDayInfo>}
+              payoutByDay={Object.fromEntries(payoutByDay)}
+              newsByDay={Object.fromEntries(newsByDay)}
+            />
+          </div>
 
           <div className="cal-legend">
             <span className="swatch">

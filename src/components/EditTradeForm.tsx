@@ -78,7 +78,7 @@ export function EditTradeForm({
   const [review, setReview] = useState(trade.review ?? "");
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-[1fr_1fr] gap-5">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1fr]">
       <input type="hidden" name="tradeId" value={trade.id} />
       <input type="hidden" name="returnTo" value={returnTo} />
       <div className="card p-5">

@@ -66,7 +66,7 @@ export function AddTradeForm({
   const [review, setReview] = useState("");
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-[1fr_1fr] gap-5">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1fr]">
       <div className="card p-5">
         <h3>Trade details</h3>
         <div className="grid grid-cols-2 gap-3.5">

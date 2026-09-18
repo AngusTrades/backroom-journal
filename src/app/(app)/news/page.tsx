@@ -268,6 +268,7 @@ export default async function NewsPage({
       </div>
 
       <div className="card card-pad" style={{ marginBottom: 20 }}>
+        <div className="cal-scroll-wrap">
         <div className="cal-grid" style={{ marginBottom: 8 }}>
           {WEEKDAY_LABELS.map((w) => (
             <div key={w} className="cal-weekday">
@@ -324,6 +325,7 @@ export default async function NewsPage({
               </Link>
             );
           })}
+        </div>
         </div>
 
         <div className="cal-legend">

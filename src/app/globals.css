@@ -343,6 +343,14 @@ button {
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+/* Budgeting & Tax's own table wrapper (payouts / tax entries / imports) —
+   never had overflow handling, so its tables just blew out the page width
+   on narrow screens instead of scrolling within their own card. */
+.table-card {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1624,6 +1632,99 @@ html[data-privacy="on"] .money::after {
 }
 .tax-net-row .amt {
   font-family: var(--font-data);
+}
+
+
+/* ============================================================
+   Mobile (<768px). The sidebar itself becomes an off-canvas drawer
+   (see Sidebar.tsx / the mobile top bar it renders) — everything
+   below here is about the fixed-column CSS grids that were built
+   assuming a wide desktop main column, so they don't get squeezed
+   into unreadable slivers now that the viewport is ~360-390px wide.
+   ============================================================ */
+@media (max-width: 767px) {
+  /* KPI stat rows (Journal/Analytics/Accounts/Budgeting/etc. all reuse
+     these same classes) — auto-fit instead of a hardcoded column count,
+     so a 3/4/5/6-tile row wraps to however many actually fit per line
+     (usually 2) instead of squeezing every tile down to a sliver. */
+  .kpi-row,
+  .kpi-row-6,
+  .kpi-row-5,
+  .kpi-row-3 {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  }
+  .kpi .v {
+    font-size: 17px;
+  }
+
+  /* Budgeting & Tax: fixed 300px sidebar + main column -> stacked */
+  .board,
+  .tax-entry-board {
+    grid-template-columns: 1fr;
+  }
+
+  /* Accounts grid + Market Bias's per-session summary cards: 3-per-row
+     card grid -> one per row */
+  .acct-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Analytics breakdown panels (confluence/entry model/session/pair): 2-up
+     -> stacked */
+  .grid4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* EV Calculator: sticky 266px input rail + results column -> stacked,
+     dropping the sticky behavior since there's no longer a side-by-side
+     column for it to stay pinned next to. */
+  .ev-board {
+    grid-template-columns: 1fr;
+  }
+  .ev-rail {
+    position: static;
+  }
+  .ev-steps,
+  .ev-derived,
+  .ev-method-grid {
+    grid-template-columns: 1fr;
+  }
+  .ev-stat-row {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  }
+
+  /* Breakdown bar rows (Analytics' confluence/session/pair panels, plus the
+     EV Calculator's own chart) — narrow the fixed value columns so the
+     label keeps some room instead of being crushed to a couple characters. */
+  .bar-row,
+  .bar-head {
+    grid-template-columns: 1fr 64px 30px 22px;
+    gap: 6px;
+  }
+  .bar-row.with-rr {
+    grid-template-columns: 1fr 54px 28px 30px 24px;
+  }
+  .ev-chart-panel .bar-row {
+    grid-template-columns: 78px 1fr 54px;
+  }
+
+  /* PnL/News month calendars: keep the real 7-day-week grid (shrinking to
+     fewer columns would stop reading as a calendar) but tighten the gap so
+     day cells aren't crushed further by the page's mobile padding. The
+     weekday-label row and the day-cell grid both get a shared min-width so
+     they scroll in lockstep, horizontally, within their own card instead of
+     the whole page overflowing (same pattern as .table-wrap). */
+  .cal-grid {
+    gap: 3px;
+  }
+  .cal-scroll-wrap {
+    overflow-x: auto;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+  .cal-scroll-wrap > .cal-grid {
+    min-width: 560px;
+  }
 }
 
 @media print {

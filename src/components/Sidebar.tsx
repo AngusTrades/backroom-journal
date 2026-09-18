@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BrandCrest } from "./BrandCrest";
 import { ThemeToggle } from "./ThemeToggle";
 import { PrivacyToggle } from "./PrivacyToggle";
@@ -119,12 +120,23 @@ const EV_ITEM = {
   ),
 };
 
-function NavLink({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
+function NavLink({
+  href,
+  label,
+  icon,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const active = pathname === href;
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className="flex items-center gap-2.5 rounded-[7px] px-2.5 py-2.5 text-[13px] font-medium"
       style={
         active
@@ -139,65 +151,140 @@ function NavLink({ href, label, icon }: { href: string; label: string; icon: Rea
 }
 
 export function Sidebar({ userName, isAdmin }: { userName: string; isAdmin: boolean }) {
+  // Below the `md` breakpoint the sidebar becomes an off-canvas drawer
+  // (fixed, slid out via translate-x) opened by a hamburger button in a
+  // small top bar; at `md` and up it reverts to the original always-visible
+  // static column. Closed by default so a fresh mobile page load doesn't
+  // show a half-covered screen.
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close the drawer automatically whenever navigation actually happens
+  // (covers back/forward and any navigation not going through NavLink's
+  // own onClick, e.g. the browser's own gesture nav). This is a legitimate
+  // post-navigation sync with an external source (the URL), the same
+  // situation already documented and disabled this same way for
+  // PnlCalendarGrid's localStorage-restore effect — not something a
+  // useState lazy initializer can replace, since `open` isn't derived from
+  // `pathname`, it just needs resetting whenever `pathname` changes.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(false);
+  }, [pathname]);
+
+  const close = () => setOpen(false);
+
   return (
-    <div
-      className="sidebar flex w-[216px] flex-none flex-col p-3.5"
-      style={{ background: "var(--surface)", borderRight: "1px solid var(--border-soft)" }}
-    >
-      <div className="mb-3.5 border-b px-2 pb-5 pt-1.5" style={{ borderColor: "var(--border-soft)" }}>
-        <div className="flex items-center gap-2.5">
-          <BrandCrest size={20} />
+    <>
+      {/* Mobile-only top bar: hidden entirely at md+ where the sidebar is
+          always visible and this would be redundant. */}
+      <div
+        className="fixed inset-x-0 top-0 z-30 flex h-[52px] items-center justify-between px-3.5 md:hidden"
+        style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-soft)" }}
+      >
+        <div className="flex items-center gap-2">
+          <BrandCrest size={18} />
           <span
-            className="whitespace-nowrap text-[14.5px] tracking-[0.09em]"
+            className="whitespace-nowrap text-[13px] tracking-[0.09em]"
             style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}
           >
             THE <b className="font-medium" style={{ color: "var(--accent)" }}>BACKROOM</b>
           </span>
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            className="text-[9.5px] uppercase tracking-[0.1em]"
-            style={{ fontFamily: "var(--font-data)", color: "var(--text-mute)" }}
-          >
-            Member Desk
-          </span>
-          <span
-            className="rounded-[3px] px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.07em]"
-            style={{
-              fontFamily: "var(--font-data)",
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-              border: "1px solid var(--accent-line)",
-            }}
-          >
-            BETA
-          </span>
-        </div>
+        <button
+          type="button"
+          aria-label={open ? "Close menu" : "Open menu"}
+          onClick={() => setOpen((v) => !v)}
+          className="flex h-9 w-9 flex-none items-center justify-center rounded-[7px]"
+          style={{ color: "var(--text-soft)", background: "var(--surface-2)", border: "1px solid var(--border-soft)" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            {open ? (
+              <>
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </>
+            ) : (
+              <>
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
       </div>
 
-      <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => (
-          <NavLink key={item.href} {...item} />
-        ))}
-        <div className="my-2.5 mx-1 h-px" style={{ background: "var(--border-soft)" }} />
-        <NavLink {...EV_ITEM} />
-        {isAdmin && <NavLink {...ADMIN_ITEM} />}
-      </nav>
+      {/* Backdrop, mobile-only, only rendered while the drawer is open. */}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
 
-      <div className="mt-auto pt-2.5" style={{ borderTop: "1px solid var(--border-soft)" }}>
-        <PrivacyToggle />
-        <ThemeToggle />
-        <div className="flex items-center justify-between gap-2 px-2 pb-0.5 pt-1 text-[11px]" style={{ color: "var(--text-mute)" }}>
-          <span className="truncate">
-            Signed in as <b className="font-semibold" style={{ color: "var(--text-soft)" }}>{userName}</b>
-          </span>
-          <form action={logout}>
-            <button type="submit" className="flex-none" style={{ color: "var(--text-mute)", textDecoration: "underline", cursor: "pointer" }}>
-              Log out
-            </button>
-          </form>
+      <div
+        className={`sidebar fixed inset-y-0 left-0 z-40 flex w-[240px] flex-none flex-col p-3.5 transition-transform duration-200 ease-out md:static md:z-auto md:w-[216px] md:translate-x-0 md:transition-none ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ background: "var(--surface)", borderRight: "1px solid var(--border-soft)" }}
+      >
+        <div className="mb-3.5 border-b px-2 pb-5 pt-1.5" style={{ borderColor: "var(--border-soft)" }}>
+          <div className="flex items-center gap-2.5">
+            <BrandCrest size={20} />
+            <span
+              className="whitespace-nowrap text-[14.5px] tracking-[0.09em]"
+              style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}
+            >
+              THE <b className="font-medium" style={{ color: "var(--accent)" }}>BACKROOM</b>
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className="text-[9.5px] uppercase tracking-[0.1em]"
+              style={{ fontFamily: "var(--font-data)", color: "var(--text-mute)" }}
+            >
+              Member Desk
+            </span>
+            <span
+              className="rounded-[3px] px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.07em]"
+              style={{
+                fontFamily: "var(--font-data)",
+                background: "var(--accent-soft)",
+                color: "var(--accent)",
+                border: "1px solid var(--accent-line)",
+              }}
+            >
+              BETA
+            </span>
+          </div>
+        </div>
+
+        <nav className="flex flex-col gap-0.5 overflow-y-auto">
+          {NAV.map((item) => (
+            <NavLink key={item.href} {...item} onNavigate={close} />
+          ))}
+          <div className="my-2.5 mx-1 h-px" style={{ background: "var(--border-soft)" }} />
+          <NavLink {...EV_ITEM} onNavigate={close} />
+          {isAdmin && <NavLink {...ADMIN_ITEM} onNavigate={close} />}
+        </nav>
+
+        <div className="mt-auto pt-2.5" style={{ borderTop: "1px solid var(--border-soft)" }}>
+          <PrivacyToggle />
+          <ThemeToggle />
+          <div className="flex items-center justify-between gap-2 px-2 pb-0.5 pt-1 text-[11px]" style={{ color: "var(--text-mute)" }}>
+            <span className="truncate">
+              Signed in as <b className="font-semibold" style={{ color: "var(--text-soft)" }}>{userName}</b>
+            </span>
+            <form action={logout}>
+              <button type="submit" className="flex-none" style={{ color: "var(--text-mute)", textDecoration: "underline", cursor: "pointer" }}>
+                Log out
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
