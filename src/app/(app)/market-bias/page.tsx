@@ -115,7 +115,7 @@ export default async function MarketBiasPage({
         }
       />
 
-      <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <div className="card card-pad" style={{ marginBottom: 24 }}>
         <h3>Log a Session</h3>
         <div className="sub" style={{ marginBottom: 12 }}>
           One entry per day per session — re-entering the same date and session just updates it, so
@@ -161,7 +161,7 @@ export default async function MarketBiasPage({
         </div>
       </div>
 
-      <div className="acct-grid" style={{ marginBottom: 20 }}>
+      <div className="acct-grid" style={{ marginBottom: 24 }}>
         {summaries.map((s) => (
           <div key={s.session} className="card card-pad">
             <h3>{SESSION_LABEL[s.session]}</h3>
@@ -239,7 +239,7 @@ export default async function MarketBiasPage({
         </table>
       </div>
 
-      <div className="card card-pad" style={{ marginTop: 20 }}>
+      <div className="card card-pad" style={{ marginTop: 24 }}>
         <h3>Session Correlation</h3>
         <div className="sub" style={{ marginBottom: 12 }}>
           How often does one session reverse after another makes a big move — e.g. &quot;after London

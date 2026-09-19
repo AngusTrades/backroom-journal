@@ -123,6 +123,96 @@ function TaxEntryCategorySection({ group, kind }: { group: TaxEntryCategoryGroup
   );
 }
 
+type PayoutRow = Awaited<ReturnType<typeof getPayoutsWithAccount>>[number];
+type PayoutFirmGroup = { firmName: string; totalGross: number; totalNet: number; totalSetAside: number; items: PayoutRow[] };
+
+// Same idea as groupTaxEntriesByCategory, for the payouts list — once
+// you're running dozens of accounts across several firms, a flat "every
+// payout ever" table gets just as unreadable as the tax entries did.
+// Grouping by the account's firm answers "how much have I been paid out
+// by Apex vs Topstep" at a glance, expandable to the individual payouts.
+function groupPayoutsByFirm(rows: PayoutRow[]): PayoutFirmGroup[] {
+  const byFirm = new Map<string, PayoutFirmGroup>();
+  for (const p of rows) {
+    const key = p.account?.firm?.trim() || "No Firm Set";
+    const gross = Number(p.grossAmount);
+    const net = Number(p.netAmount);
+    const setAside = gross - net;
+    const existing = byFirm.get(key);
+    if (existing) {
+      existing.totalGross += gross;
+      existing.totalNet += net;
+      existing.totalSetAside += setAside;
+      existing.items.push(p);
+    } else {
+      byFirm.set(key, { firmName: key, totalGross: gross, totalNet: net, totalSetAside: setAside, items: [p] });
+    }
+  }
+  return Array.from(byFirm.values()).sort((a, b) => b.totalGross - a.totalGross);
+}
+
+// One firm's payouts, collapsed by default — reuses the same
+// .tax-category-block/.tax-category-head look as the tax entry groups above
+// so the whole page reads consistently, with the original payouts table
+// (Date/Account/Gross/Set-Aside/Net/Actions) nested inside each firm.
+function PayoutFirmSection({ group }: { group: PayoutFirmGroup }) {
+  return (
+    <details className="tax-category-block">
+      <summary className="tax-category-head" style={{ cursor: "pointer", listStyle: "none" }}>
+        <span>
+          {group.firmName}{" "}
+          <span className="sub" style={{ fontWeight: 400 }}>
+            {group.items.length} {group.items.length === 1 ? "payout" : "payouts"}
+          </span>
+        </span>
+        <span className="amt good money">+{fmtUsd(group.totalGross)}</span>
+      </summary>
+      <div className="table-wrap" style={{ marginTop: 8 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Account</th>
+              <th>Gross Payout</th>
+              <th>Set-Aside %</th>
+              <th>Set-Aside</th>
+              <th>Net</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.items.map((p) => {
+              const gross = Number(p.grossAmount);
+              const net = Number(p.netAmount);
+              const setAside = gross - net;
+              return (
+                <tr key={p.id}>
+                  <td className="date">{fmtDate(p.date)}</td>
+                  <td className="mono">
+                    {p.account?.name ?? "—"}
+                    {p.account?.status === "failed" ? (
+                      <span className="sub" style={{ marginLeft: 6 }}>
+                        (blown account)
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="pnl good money">+{fmtUsd(gross)}</td>
+                  <td className="mono">{p.setAsidePct ? `${Number(p.setAsidePct).toFixed(0)}%` : "—"}</td>
+                  <td className="mono money">{fmtUsd(setAside)}</td>
+                  <td className="mono money">{fmtUsd(net)}</td>
+                  <td>
+                    <DeletePayoutButton id={p.id} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 export default async function BudgetingPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
   const user = await requireUser();
   const { year: yearParam } = await searchParams;
@@ -235,51 +325,18 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           </div>
 
           {payoutRows.length === 0 ? (
-            <div className="card card-pad no-print" style={{ marginBottom: 20 }}>
+            <div className="card card-pad no-print" style={{ marginBottom: 24 }}>
               <div className="sub">No payouts logged yet.</div>
             </div>
           ) : (
-            <div className="table-card no-print" style={{ marginBottom: 20 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Source</th>
-                    <th>Gross Payout</th>
-                    <th>Set-Aside %</th>
-                    <th>Set-Aside</th>
-                    <th>Net</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payoutRows.map((p) => {
-                    const gross = Number(p.grossAmount);
-                    const net = Number(p.netAmount);
-                    const setAside = gross - net;
-                    return (
-                      <tr key={p.id}>
-                        <td className="date">{fmtDate(p.date)}</td>
-                        <td className="mono">
-                          {p.account?.name ?? "—"}
-                          {p.account?.status === "failed" ? (
-                            <span className="sub" style={{ marginLeft: 6 }}>
-                              (blown account)
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="pnl good money">+{fmtUsd(gross)}</td>
-                        <td className="mono">{p.setAsidePct ? `${Number(p.setAsidePct).toFixed(0)}%` : "—"}</td>
-                        <td className="mono money">{fmtUsd(setAside)}</td>
-                        <td className="mono money">{fmtUsd(net)}</td>
-                        <td>
-                          <DeletePayoutButton id={p.id} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="card card-pad no-print" style={{ marginBottom: 24 }}>
+              <h3>Payouts</h3>
+              <div className="sub" style={{ marginBottom: 10 }}>
+                Every payout, grouped by prop firm — see how much you&apos;ve been paid out from each one.
+              </div>
+              {groupPayoutsByFirm(payoutRows).map((g) => (
+                <PayoutFirmSection key={g.firmName} group={g} />
+              ))}
             </div>
           )}
 
@@ -471,7 +528,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           text-scan (PDF) importer (see TaxCsvImport for why this isn't a
           firm-specific one-click import yet).
           ----------------------------------------------------------------- */}
-      <div className="card card-pad no-print" style={{ marginTop: 20 }}>
+      <div className="card card-pad no-print" style={{ marginTop: 24 }}>
         <h3>Import from a file</h3>
         <div className="sub" style={{ marginBottom: 10 }}>
           Import account purchases/resets, or any income/expense export, from a CSV or PDF file. For a CSV, pick

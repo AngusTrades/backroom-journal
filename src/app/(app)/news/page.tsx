@@ -205,7 +205,7 @@ export default async function NewsPage({
       )}
 
       {isAdmin && (
-        <div className="card card-pad" style={{ marginBottom: 20 }}>
+        <div className="card card-pad" style={{ marginBottom: 24 }}>
           <h3>Sync News (Admin)</h3>
           <div className="sub" style={{ marginBottom: 12 }}>
             Pulls last/this/next week from ForexFactory&apos;s public calendar feed. Only high (red folder) and
@@ -248,7 +248,7 @@ export default async function NewsPage({
       </div>
 
       {availableCurrencies.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 24 }}>
           <PersistedFilterPills
             cookieName={CURRENCIES_COOKIE}
             items={[
@@ -275,7 +275,7 @@ export default async function NewsPage({
         </div>
       )}
 
-      <div className="kpi-row kpi-row-3" style={{ marginBottom: 20 }}>
+      <div className="kpi-row kpi-row-3" style={{ marginBottom: 24 }}>
         <div className="kpi">
           <div className="k">High Impact This Month</div>
           <div className="v bad">{highCount}</div>
@@ -292,7 +292,7 @@ export default async function NewsPage({
         </div>
       </div>
 
-      <div className="card card-pad news-calendar-card" style={{ marginBottom: 20 }}>
+      <div className="card card-pad news-calendar-card" style={{ marginBottom: 24 }}>
         <div className="cal-scroll-wrap">
         <div className="cal-grid" style={{ marginBottom: 8 }}>
           {WEEKDAY_LABELS.map((w) => (
@@ -364,7 +364,7 @@ export default async function NewsPage({
         </div>
       </div>
 
-      <div className="card card-pad news-mobile-list" style={{ marginBottom: 20 }}>
+      <div className="card card-pad news-mobile-list" style={{ marginBottom: 24 }}>
         {mobileGroups.length === 0 ? (
           <div className="sub" style={{ textAlign: "center", padding: "16px 0", margin: 0 }}>
             {isAdmin

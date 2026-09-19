@@ -294,7 +294,7 @@ export default async function AccountsPage() {
         </div>
       )}
 
-      <div className="card card-pad" id="add-account" style={{ marginTop: 20 }}>
+      <div className="card card-pad" id="add-account" style={{ marginTop: 24 }}>
         <h3>Add Account</h3>
         <form action={createAccount} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-3">
           <div className="field">

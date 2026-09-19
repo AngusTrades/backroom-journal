@@ -184,7 +184,7 @@ export default async function CalendarPage({
         />
       </div>
 
-      <div className="kpi-row kpi-row-5" style={{ marginBottom: 20 }}>
+      <div className="kpi-row kpi-row-5" style={{ marginBottom: 24 }}>
         <div className="kpi">
           <div className="k">{monthHasPnlData ? "Month P&L ($)" : "Month Net R"}</div>
           <div className={`v ${monthHasPnlData ? "money" : ""} ${(monthHasPnlData ? monthPnl : monthRr) >= 0 ? "good" : "bad"}`}>

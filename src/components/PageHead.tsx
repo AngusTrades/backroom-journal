@@ -8,7 +8,7 @@ export function PageHead({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="pagehead mb-5 flex flex-col items-start gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+    <div className="pagehead mb-6 flex flex-col items-start gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
       <div>
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}

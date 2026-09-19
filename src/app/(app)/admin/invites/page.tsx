@@ -34,7 +34,7 @@ export default async function InviteCodesPage() {
     <div>
       <PageHead title="Invite Codes" subtitle="Hand these out to members so they can create their own login." />
 
-      <div className="kpi-row kpi-row-3" style={{ marginBottom: 20 }}>
+      <div className="kpi-row kpi-row-3" style={{ marginBottom: 24 }}>
         <div className="kpi">
           <div className="k">Total Members</div>
           <div className="v">{memberCount}</div>
@@ -49,7 +49,7 @@ export default async function InviteCodesPage() {
         </div>
       </div>
 
-      <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <div className="card card-pad" style={{ marginBottom: 24 }}>
         <h3>Create Invite Code</h3>
         <div className="sub" style={{ marginBottom: 12 }}>
           Leave the code blank to auto-generate one. Leave max uses blank for unlimited (good for one code shared in

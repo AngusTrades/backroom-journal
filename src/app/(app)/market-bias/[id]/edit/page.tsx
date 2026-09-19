@@ -40,7 +40,7 @@ export default async function EditSessionLogPage({
         }
       />
 
-      <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <div className="card card-pad" style={{ marginBottom: 24 }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="sub" style={{ margin: 0 }}>
             Deleting an entry removes it permanently.

@@ -86,7 +86,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         }
       />
 
-      <div className="card card-pad" style={{ marginBottom: 20 }}>
+      <div className="card card-pad" style={{ marginBottom: 24 }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`status ${meta.cls}`}>{meta.label}</span>
@@ -97,7 +97,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <div className="kpi-row kpi-row-5" style={{ marginBottom: 20 }}>
+      <div className="kpi-row kpi-row-5" style={{ marginBottom: 24 }}>
         <div className="kpi">
           <div className="k">Current Balance</div>
           <div className="v money">${currentBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
@@ -191,7 +191,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
       <h3 style={{ marginBottom: 10 }}>Payouts</h3>
       {payoutRows.length > 0 ? (
-        <div className="table-wrap" style={{ marginBottom: 20 }}>
+        <div className="table-wrap" style={{ marginBottom: 24 }}>
           <table>
             <thead>
               <tr>
@@ -216,7 +216,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           </table>
         </div>
       ) : (
-        <div className="card card-pad" style={{ marginBottom: 20 }}>
+        <div className="card card-pad" style={{ marginBottom: 24 }}>
           <div className="sub">No payouts logged on this account yet.</div>
         </div>
       )}
