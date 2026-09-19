@@ -78,6 +78,13 @@
       "when": 1789637989741,
       "tag": "0010_add_tax_calculator",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789812855399,
+      "tag": "0011_talented_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { getAccountGroupById } from "@/db/queries";
 
 export async function createAccount(formData: FormData) {
   const user = await requireUser();
@@ -26,9 +27,20 @@ export async function createAccount(formData: FormData) {
     | "funded"
     | "closed";
   const startingBalanceRaw = String(formData.get("startingBalance") ?? "").trim();
+  const groupIdRaw = String(formData.get("groupId") ?? "").trim();
 
   if (!name) {
     throw new Error("Account name is required");
+  }
+
+  // A submitted groupId is only trusted once it's confirmed to be one of
+  // this member's own groups — same ownership-check pattern as a submitted
+  // pairId/entryModelId on a trade — so a tampered field can't file a new
+  // account under someone else's group.
+  let groupId: string | null = null;
+  if (groupIdRaw) {
+    const group = await getAccountGroupById(groupIdRaw, user.id);
+    groupId = group?.id ?? null;
   }
 
   await db.insert(accounts).values({
@@ -39,6 +51,7 @@ export async function createAccount(formData: FormData) {
     sizeUsd: sizeUsdRaw || null,
     status,
     startingBalance: startingBalanceRaw || sizeUsdRaw || "0",
+    groupId,
   });
 
   revalidatePath("/accounts");

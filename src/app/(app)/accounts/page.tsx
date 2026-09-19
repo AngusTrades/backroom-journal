@@ -1,10 +1,16 @@
-import { getAccountsWithStats } from "@/db/queries";
+import { getAccountsWithStats, getAccountGroups } from "@/db/queries";
 import { PageHead } from "@/components/PageHead";
 import { createAccount } from "@/app/actions/accounts";
 import { AccountStatusControl } from "@/components/AccountStatusControl";
+import { AccountGroupSelect } from "@/components/AccountGroupSelect";
+import { AccountGroupControl } from "@/components/AccountGroupControl";
+import { AccountGroupHeaderActions } from "@/components/AccountGroupHeaderActions";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+
+type AccountRow = Awaited<ReturnType<typeof getAccountsWithStats>>[number];
+type GroupRow = Awaited<ReturnType<typeof getAccountGroups>>[number];
 
 function statusMeta(status: string, type: string): { cls: string; label: string } {
   if (status === "passed") return { cls: "passed", label: "PASSED" };
@@ -34,15 +40,140 @@ function typeLabel(type: string) {
   }
 }
 
+// One account card — pulled out of the grid-mapping below since it now
+// renders identically inside three different places (a group's section, the
+// Ungrouped section, and the flat no-groups-yet layout).
+function AccountCard({ a, groups }: { a: AccountRow; groups: GroupRow[] }) {
+  const meta = statusMeta(a.status, a.type);
+  const size = Number(a.sizeUsd ?? a.startingBalance ?? 0);
+  const winRate = a.tradeCount ? (a.wins / a.tradeCount) * 100 : 0;
+  return (
+    <div className="acct-card">
+      <div className="acct-top">
+        <div>
+          <div className="acct-name">{a.name}</div>
+          <div className="acct-sub">
+            {typeLabel(a.type)}
+            {a.firm ? ` · ${a.firm}` : ""}
+          </div>
+        </div>
+        <span className={`status ${meta.cls}`}>{meta.label}</span>
+      </div>
+      <div className="balance money">${a.currentBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+      <div className="pnl-line">
+        {a.tradeCount > 0 ? (
+          <>
+            {a.tradeCount} trades ·{" "}
+            <b className={winRate >= 50 ? "good" : "bad"}>{winRate.toFixed(0)}% win rate</b>
+            {size > 0 && Math.round(size) !== Math.round(a.currentBalance) && (
+              <span className="money">
+                {" "}
+                · {a.currentBalance >= size ? "+" : "−"}$
+                {Math.abs(a.currentBalance - size).toLocaleString(undefined, { maximumFractionDigits: 0 })} vs.{" "}
+                {size.toLocaleString(undefined, { maximumFractionDigits: 0 })} size
+              </span>
+            )}
+          </>
+        ) : (
+          "No trades logged yet"
+        )}
+      </div>
+      <div className="acct-foot" style={{ flexWrap: "wrap", gap: 8 }}>
+        <span className="rr">
+          Total R: {a.totalRr >= 0 ? "+" : ""}
+          {a.totalRr.toFixed(1)}R
+          {a.totalPayouts > 0 && (
+            <span className="money"> · ${a.totalPayouts.toLocaleString(undefined, { maximumFractionDigits: 0 })} paid out</span>
+          )}
+        </span>
+        <a className="link" href={`/accounts/${a.id}`}>
+          View account →
+        </a>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+        <AccountGroupControl accountId={a.id} currentGroupId={a.groupId} groups={groups} />
+      </div>
+    </div>
+  );
+}
+
+// A group's collapsible section — the account count/balance/net R in the
+// summary is what makes a busy roster (20 Apex accounts, say) readable at a
+// glance without opening it. Native <details>/<summary>, same "plain HTML,
+// no client JS for the shell" philosophy as the rest of the app; only the
+// bits inside that need interactivity (the rename/delete buttons, the
+// per-card group picker) are client components.
+function GroupSection({
+  title,
+  accountsInGroup,
+  groups,
+  headerActions,
+}: {
+  title: string;
+  accountsInGroup: AccountRow[];
+  groups: GroupRow[];
+  headerActions?: React.ReactNode;
+}) {
+  const totalBalance = accountsInGroup.reduce((s, a) => s + a.currentBalance, 0);
+  const netR = accountsInGroup.reduce((s, a) => s + a.totalRr, 0);
+  return (
+    <details open style={{ marginBottom: 16 }}>
+      <summary
+        className="flex items-center justify-between flex-wrap gap-2"
+        style={{
+          cursor: "pointer",
+          listStyle: "none",
+          padding: "10px 4px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span className="flex items-center gap-2.5 flex-wrap">
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
+          <span className="sub" style={{ fontSize: 11.5 }}>
+            {accountsInGroup.length} account{accountsInGroup.length === 1 ? "" : "s"}
+            {accountsInGroup.length > 0 && (
+              <>
+                {" "}
+                · <span className="money">${totalBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> ·{" "}
+                <span className={netR >= 0 ? "good" : "bad"}>
+                  {netR >= 0 ? "+" : ""}
+                  {netR.toFixed(1)}R
+                </span>
+              </>
+            )}
+          </span>
+        </span>
+        {headerActions}
+      </summary>
+      <div style={{ paddingTop: 14 }}>
+        {accountsInGroup.length === 0 ? (
+          <div className="sub" style={{ padding: "4px 4px 8px" }}>
+            No accounts in this group yet — assign one from its card above, or from Add Account below.
+          </div>
+        ) : (
+          <div className="acct-grid">
+            {accountsInGroup.map((a) => (
+              <AccountCard key={a.id} a={a} groups={groups} />
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export default async function AccountsPage() {
   const user = await requireUser();
-  const accounts = await getAccountsWithStats(user.id);
+  const [accounts, groups] = await Promise.all([getAccountsWithStats(user.id), getAccountGroups(user.id)]);
   const activeAccounts = accounts.filter((a) => a.status !== "failed");
   const archivedAccounts = accounts.filter((a) => a.status === "failed");
 
   const totalValue = accounts.reduce((s, a) => s + a.currentBalance, 0);
   const netR = accounts.reduce((s, a) => s + a.totalRr, 0);
   const inEval = accounts.filter((a) => a.type === "prop_firm" && a.status === "active").length;
+
+  const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+  const ungroupedActive = activeAccounts.filter((a) => !a.groupId || !groupNameById.has(a.groupId));
 
   return (
     <div>
@@ -82,60 +213,34 @@ export default async function AccountsPage() {
         <div className="card card-pad">
           <div className="sub">No active accounts yet.</div>
         </div>
-      ) : (
+      ) : groups.length === 0 ? (
+        // Nobody's made a group yet — a flat grid is the right default,
+        // exactly as before. Each card still carries the group picker so
+        // starting your first group is one click away from any card.
         <div className="acct-grid">
-          {activeAccounts.map((a) => {
-            const meta = statusMeta(a.status, a.type);
-            const size = Number(a.sizeUsd ?? a.startingBalance ?? 0);
-            const winRate = a.tradeCount ? (a.wins / a.tradeCount) * 100 : 0;
+          {activeAccounts.map((a) => (
+            <AccountCard key={a.id} a={a} groups={groups} />
+          ))}
+        </div>
+      ) : (
+        <div>
+          {groups.map((g) => {
+            const accountsInGroup = activeAccounts.filter((a) => a.groupId === g.id);
             return (
-              <div className="acct-card" key={a.id}>
-                <div className="acct-top">
-                  <div>
-                    <div className="acct-name">{a.name}</div>
-                    <div className="acct-sub">
-                      {typeLabel(a.type)}
-                      {a.firm ? ` · ${a.firm}` : ""}
-                    </div>
-                  </div>
-                  <span className={`status ${meta.cls}`}>{meta.label}</span>
-                </div>
-                <div className="balance money">
-                  ${a.currentBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </div>
-                <div className="pnl-line">
-                  {a.tradeCount > 0 ? (
-                    <>
-                      {a.tradeCount} trades ·{" "}
-                      <b className={winRate >= 50 ? "good" : "bad"}>{winRate.toFixed(0)}% win rate</b>
-                      {size > 0 && Math.round(size) !== Math.round(a.currentBalance) && (
-                        <span className="money">
-                          {" "}
-                          · {a.currentBalance >= size ? "+" : "−"}$
-                          {Math.abs(a.currentBalance - size).toLocaleString(undefined, { maximumFractionDigits: 0 })} vs.{" "}
-                          {size.toLocaleString(undefined, { maximumFractionDigits: 0 })} size
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    "No trades logged yet"
-                  )}
-                </div>
-                <div className="acct-foot">
-                  <span className="rr">
-                    Total R: {a.totalRr >= 0 ? "+" : ""}
-                    {a.totalRr.toFixed(1)}R
-                    {a.totalPayouts > 0 && (
-                      <span className="money"> · ${a.totalPayouts.toLocaleString(undefined, { maximumFractionDigits: 0 })} paid out</span>
-                    )}
-                  </span>
-                  <a className="link" href={`/accounts/${a.id}`}>
-                    View account →
-                  </a>
-                </div>
-              </div>
+              <GroupSection
+                key={g.id}
+                title={g.name}
+                accountsInGroup={accountsInGroup}
+                groups={groups}
+                headerActions={
+                  <AccountGroupHeaderActions id={g.id} name={g.name} accountCount={accountsInGroup.length} />
+                }
+              />
             );
           })}
+          {ungroupedActive.length > 0 && (
+            <GroupSection title="Ungrouped" accountsInGroup={ungroupedActive} groups={groups} />
+          )}
         </div>
       )}
 
@@ -151,6 +256,7 @@ export default async function AccountsPage() {
                 <tr>
                   <th>Account</th>
                   <th>Type</th>
+                  <th>Group</th>
                   <th className="num">Total R</th>
                   <th className="num">Payouts</th>
                   <th></th>
@@ -164,6 +270,7 @@ export default async function AccountsPage() {
                       {typeLabel(a.type)}
                       {a.firm ? ` · ${a.firm}` : ""}
                     </td>
+                    <td className="acct-sub">{a.groupId ? (groupNameById.get(a.groupId) ?? "—") : "—"}</td>
                     <td className={`num pnl ${a.totalRr >= 0 ? "good" : "bad"}`}>
                       {a.totalRr >= 0 ? "+" : ""}
                       {a.totalRr.toFixed(1)}R
@@ -217,6 +324,10 @@ export default async function AccountsPage() {
           <div className="field">
             <label>Firm (optional)</label>
             <input type="text" name="firm" placeholder="e.g. Bulenox" />
+          </div>
+          <div className="field">
+            <label>Group (optional)</label>
+            <AccountGroupSelect initialGroups={groups} />
           </div>
           <div className="field">
             <label>Account Size ($)</label>

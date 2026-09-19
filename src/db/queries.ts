@@ -1,6 +1,7 @@
 import { db } from "./index";
 import {
   accounts,
+  accountGroups,
   entryModels,
   pairs,
   sessions,
@@ -139,6 +140,26 @@ export async function getAccountsWithStats(userId: string) {
       currentBalance,
     };
   });
+}
+
+// A member's own account groups (e.g. "Apex", "Live Accounts") — used both
+// to populate the "+ New group…" pickers and to organize the Accounts
+// dashboard into collapsible sections instead of one flat grid. Ordered by
+// name, same convention as pairs/entry models/setups.
+export async function getAccountGroups(userId: string) {
+  return db.select().from(accountGroups).where(eq(accountGroups.userId, userId)).orderBy(accountGroups.name);
+}
+
+// Same ownership-gate pattern as getAccountById/getEntryModelById — used by
+// renameAccountGroup/deleteAccountGroup so a tampered group id in a form
+// can't touch another member's group.
+export async function getAccountGroupById(id: string, userId: string) {
+  const rows = await db
+    .select()
+    .from(accountGroups)
+    .where(and(eq(accountGroups.id, id), eq(accountGroups.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getPayoutsWithAccount(userId: string) {

@@ -58,6 +58,71 @@ function fmtUsd2(n: number) {
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+type TaxEntryRow = Awaited<ReturnType<typeof getTaxEntriesForYear>>[number];
+type TaxEntryCategoryGroup = { categoryName: string; total: number; items: TaxEntryRow[] };
+
+// Groups a kind's entries ("income" or "expense") by category name — e.g.
+// every "Topstep Combine" purchase collapses into one "Topstep Combine"
+// bucket instead of one row per purchase. Highest-total category first, so
+// the biggest spend ("you've used $X on Apex resets") leads.
+function groupTaxEntriesByCategory(entries: TaxEntryRow[]): TaxEntryCategoryGroup[] {
+  const byCategory = new Map<string, TaxEntryCategoryGroup>();
+  for (const e of entries) {
+    const key = e.category.name;
+    const amount = Number(e.amount);
+    const existing = byCategory.get(key);
+    if (existing) {
+      existing.total += amount;
+      existing.items.push(e);
+    } else {
+      byCategory.set(key, { categoryName: key, total: amount, items: [e] });
+    }
+  }
+  return Array.from(byCategory.values()).sort((a, b) => b.total - a.total);
+}
+
+// One category's entries, collapsed by default. With hundreds or thousands
+// of prop-firm purchases (combines, resets, activation fees) piling up over
+// a year, a flat per-entry table becomes unreadable — this collapses it to
+// "$X on Topstep Combines" at a glance, expandable per category. Reuses the
+// .tax-category-block/.tax-category-head/.tax-line-row classes the printed
+// Tax Year Summary above already uses, so the look matches; this whole
+// section lives inside .tax-entry-board.no-print, so it's excluded from
+// printing entirely — the print output is untouched and stays fully
+// itemized exactly as before.
+function TaxEntryCategorySection({ group, kind }: { group: TaxEntryCategoryGroup; kind: "income" | "expense" }) {
+  const color = kind === "income" ? "var(--good)" : "var(--bad)";
+  const sign = kind === "income" ? "+" : "−";
+  return (
+    <details className="tax-category-block">
+      <summary className="tax-category-head" style={{ cursor: "pointer", listStyle: "none" }}>
+        <span>
+          {group.categoryName}{" "}
+          <span className="sub" style={{ fontWeight: 400 }}>
+            {group.items.length} {group.items.length === 1 ? "entry" : "entries"}
+          </span>
+        </span>
+        <span className="amt" style={{ color }}>
+          {sign}
+          {fmtUsd2(group.total)}
+        </span>
+      </summary>
+      {group.items.map((e) => (
+        <div key={e.id} className="tax-line-row">
+          <span className="desc">
+            {fmtDate(e.date)} {e.description ? `— ${e.description}` : ""}
+          </span>
+          <span className="amt" style={{ color }}>
+            {sign}
+            {fmtUsd2(Number(e.amount))}
+            <DeleteTaxEntryButton id={e.id} />
+          </span>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 export default async function BudgetingPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
   const user = await requireUser();
   const { year: yearParam } = await searchParams;
@@ -377,31 +442,10 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           </div>
           <TaxEntryForm kind="income" initialCategories={categories.income} />
           {incomeEntries.length > 0 && (
-            <div className="table-card" style={{ marginTop: 16 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th>Amount</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {incomeEntries.map((e) => (
-                    <tr key={e.id}>
-                      <td className="date">{fmtDate(e.date)}</td>
-                      <td className="mono">{e.category.name}</td>
-                      <td className="mono">{e.description ?? "—"}</td>
-                      <td className="pnl good money">+{fmtUsd2(Number(e.amount))}</td>
-                      <td>
-                        <DeleteTaxEntryButton id={e.id} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ marginTop: 16 }}>
+              {groupTaxEntriesByCategory(incomeEntries).map((g) => (
+                <TaxEntryCategorySection key={g.categoryName} group={g} kind="income" />
+              ))}
             </div>
           )}
         </div>
@@ -413,47 +457,26 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           </div>
           <TaxEntryForm kind="expense" initialCategories={categories.expense} />
           {expenseEntries.length > 0 && (
-            <div className="table-card" style={{ marginTop: 16 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th>Amount</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseEntries.map((e) => (
-                    <tr key={e.id}>
-                      <td className="date">{fmtDate(e.date)}</td>
-                      <td className="mono">{e.category.name}</td>
-                      <td className="mono">{e.description ?? "—"}</td>
-                      <td className="pnl bad money">−{fmtUsd2(Number(e.amount))}</td>
-                      <td>
-                        <DeleteTaxEntryButton id={e.id} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ marginTop: 16 }}>
+              {groupTaxEntriesByCategory(expenseEntries).map((g) => (
+                <TaxEntryCategorySection key={g.categoryName} group={g} kind="expense" />
+              ))}
             </div>
           )}
         </div>
       </div>
 
       {/* -----------------------------------------------------------------
-          CSV/PDF import — a generic column-mapped importer for CSV (see
-          TaxCsvImport for why this isn't a firm-specific one-click import
-          yet), plus best-effort transaction extraction for PDF statements.
+          CSV/PDF import — a generic column-mapped (CSV) or best-effort
+          text-scan (PDF) importer (see TaxCsvImport for why this isn't a
+          firm-specific one-click import yet).
           ----------------------------------------------------------------- */}
       <div className="card card-pad no-print" style={{ marginTop: 20 }}>
         <h3>Import from a file</h3>
         <div className="sub" style={{ marginBottom: 10 }}>
-          Import account purchases/resets, or any income/expense export, from a CSV or PDF file — for a CSV, pick
-          which columns are which; for a PDF, transactions are found automatically — and every row that parses gets
-          logged.
+          Import account purchases/resets, or any income/expense export, from a CSV or PDF file. For a CSV, pick
+          which columns are which; for a PDF statement, every date-and-amount line found in the text gets pulled out
+          automatically. Either way, review the rows before importing.
         </div>
         <TaxCsvImport incomeCategories={categories.income} expenseCategories={categories.expense} />
 

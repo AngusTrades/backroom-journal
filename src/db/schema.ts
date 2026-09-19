@@ -104,6 +104,30 @@ export const inviteCodes = pgTable("invite_codes", {
 // models" and "setups" (confluences) are personal per-member — see the
 // notes above each table below.
 // ---------------------------------------------------------------------------
+
+// Account groups — a member's own folders for organizing accounts (e.g. one
+// firm like Apex can have 20 separate accounts; a group lets those be
+// collapsed into one "Apex" section on the Accounts dashboard instead of 20
+// flat cards with no structure). Same "+ Add your own" per-member pattern as
+// pairs/entry models/setups/tax categories: freeform, named by the member,
+// unique only within their own list. Deliberately a separate concept from
+// the existing freeform `accounts.firm` text field (which just labels which
+// firm an account is with) — a group is an explicit, member-chosen bucket
+// that can hold accounts across different firms/types if that's how a
+// member wants to organize their dashboard.
+export const accountGroups = pgTable(
+  "account_groups",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("account_groups_user_name_unique").on(t.userId, t.name)],
+);
+
 export const accounts = pgTable("accounts", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -117,6 +141,11 @@ export const accounts = pgTable("accounts", {
   startingBalance: numeric("starting_balance", { precision: 14, scale: 2 })
     .notNull()
     .default("0"),
+  // Optional — an account with no group shows in the dashboard's "Ungrouped"
+  // section. Deleting a group (accountGroups above) un-groups its accounts
+  // rather than deleting them (`onDelete: set null`), same treatment as
+  // deleting an entry model just clears the tag off past trades.
+  groupId: uuid("group_id").references(() => accountGroups.id, { onDelete: "set null" }),
   // Copytrader / Tradovate live sync — the broker-side account number this
   // journal account corresponds to (from Tradovate's Account Info panel),
   // and whether this is the one account the copy engine watches as the
@@ -440,6 +469,7 @@ export const copyDestinations = pgTable("copy_destinations", {
 // ---------------------------------------------------------------------------
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
+  accountGroups: many(accountGroups),
   setups: many(setups),
   entryModels: many(entryModels),
   pairs: many(pairs),
@@ -459,9 +489,15 @@ export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
 
 export const accountsRelations = relations(accounts, ({ one, many }) => ({
   user: one(users, { fields: [accounts.userId], references: [users.id] }),
+  group: one(accountGroups, { fields: [accounts.groupId], references: [accountGroups.id] }),
   trades: many(trades),
   payouts: many(payouts),
   copyDestinations: many(copyDestinations),
+}));
+
+export const accountGroupsRelations = relations(accountGroups, ({ one, many }) => ({
+  user: one(users, { fields: [accountGroups.userId], references: [users.id] }),
+  accounts: many(accounts),
 }));
 
 export const copyDestinationsRelations = relations(copyDestinations, ({ one }) => ({

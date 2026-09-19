@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAccountById, getTradesForAccount, getPayoutsForAccount, getTaxProfile } from "@/db/queries";
+import { getAccountById, getAccountGroups, getTradesForAccount, getPayoutsForAccount, getTaxProfile } from "@/db/queries";
 import { PageHead } from "@/components/PageHead";
 import { AccountStatusControl } from "@/components/AccountStatusControl";
+import { AccountGroupControl } from "@/components/AccountGroupControl";
 import { DeleteAccountButton } from "@/components/DeleteAccountButton";
 import { DeleteTradeButton } from "@/components/DeleteTradeButton";
 import { DeletePayoutButton } from "@/components/DeletePayoutButton";
@@ -49,10 +50,11 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   const account = await getAccountById(id, user.id);
   if (!account) notFound();
 
-  const [tradeRows, payoutRows, taxProfile] = await Promise.all([
+  const [tradeRows, payoutRows, taxProfile, groups] = await Promise.all([
     getTradesForAccount(id),
     getPayoutsForAccount(id),
     getTaxProfile(user.id),
+    getAccountGroups(user.id),
   ]);
 
   const tradeCount = tradeRows.length;
@@ -86,9 +88,10 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
       <div className="card card-pad" style={{ marginBottom: 20 }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className={`status ${meta.cls}`}>{meta.label}</span>
             <AccountStatusControl id={account.id} name={account.name} status={account.status} />
+            <AccountGroupControl accountId={account.id} currentGroupId={account.groupId} groups={groups} />
           </div>
           <DeleteAccountButton id={account.id} name={account.name} tradeCount={tradeCount} totalPayouts={totalPayouts} />
         </div>
