@@ -444,14 +444,16 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
       </div>
 
       {/* -----------------------------------------------------------------
-          CSV import — a generic column-mapped importer (see TaxCsvImport
-          for why this isn't a firm-specific one-click import yet).
+          CSV/PDF import — a generic column-mapped importer for CSV (see
+          TaxCsvImport for why this isn't a firm-specific one-click import
+          yet), plus best-effort transaction extraction for PDF statements.
           ----------------------------------------------------------------- */}
       <div className="card card-pad no-print" style={{ marginTop: 20 }}>
         <h3>Import from a file</h3>
         <div className="sub" style={{ marginBottom: 10 }}>
-          Import account purchases/resets, or any income/expense export, from a CSV file — pick which columns are
-          which and every row that parses gets logged.
+          Import account purchases/resets, or any income/expense export, from a CSV or PDF file — for a CSV, pick
+          which columns are which; for a PDF, transactions are found automatically — and every row that parses gets
+          logged.
         </div>
         <TaxCsvImport incomeCategories={categories.income} expenseCategories={categories.expense} />
 

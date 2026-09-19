@@ -2,10 +2,11 @@
 
 import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { importTaxEntries } from "@/app/actions/tax";
+import { importTaxEntries, extractPdfTransactions } from "@/app/actions/tax";
 import { TaxCategorySelect } from "@/components/TaxCategorySelect";
 
 type CategoryOpt = { id: string; name: string };
+type ParsedRow = { date: string; amount: number; description: string | null };
 
 // Hand-rolled CSV parser (no new dependency, same philosophy as the News
 // feed's hand-written XML parser) — handles quoted fields with embedded
@@ -70,8 +71,23 @@ function parseDate(raw: string): string | null {
   return d.toISOString();
 }
 
+// Binary-safe File -> base64, chunked so a multi-MB file doesn't blow the
+// call stack on String.fromCharCode(...bytes) — used to hand a PDF to the
+// extractPdfTransactions server action (see src/lib/pdfTransactions.ts for
+// why that extraction runs server-side rather than in the browser).
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 const PREVIEW_ROWS = 8;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_PDF_BYTES = 4 * 1024 * 1024; // keep in sync with MAX_PDF_BYTES in app/actions/tax.ts
 
 // Generic column-mapped CSV/text-file importer for prop-firm account
 // purchases/resets, affiliate/Whop/Lucid payout exports, or anything else
@@ -82,6 +98,12 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 // columns. Until then: pick which column is the date, which is the amount,
 // and (optionally) which is the description, and every row that parses
 // cleanly gets imported as one entry.
+//
+// PDFs go a different path: there are no columns to pick, so a dropped PDF
+// is sent to extractPdfTransactions (a server action) which reads every
+// line of the PDF's text and keeps the ones that look like a transaction
+// (a date and an amount on the same line) — best effort, same spirit as the
+// CSV path, just no mapping step since there's nothing to map.
 export function TaxCsvImport({
   incomeCategories,
   expenseCategories,
@@ -92,21 +114,66 @@ export function TaxCsvImport({
   const router = useRouter();
   const inputId = useId();
   const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState<"csv" | "pdf" | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [dataRows, setDataRows] = useState<string[][]>([]);
+  const [pdfRows, setPdfRows] = useState<ParsedRow[]>([]);
   const [dateCol, setDateCol] = useState("");
   const [amountCol, setAmountCol] = useState("");
   const [descCol, setDescCol] = useState("");
   const [kind, setKind] = useState<"income" | "expense">("expense");
   const [categoryId, setCategoryId] = useState("");
   const [importing, setImporting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  function resetFile() {
+    setFile(null);
+    setSource(null);
+    setHeaders([]);
+    setDataRows([]);
+    setPdfRows([]);
+    setDateCol("");
+    setAmountCol("");
+    setDescCol("");
+    setCategoryId("");
+  }
 
   async function handleFile(f: File | undefined) {
+    if (extracting) return; // already reading a PDF — ignore a second drop until that resolves
     setResult(null);
     setPickError(null);
     if (!f) return;
+
+    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      if (f.size > MAX_PDF_BYTES) {
+        setPickError(`That PDF is too large (${Math.round(MAX_PDF_BYTES / 1024 / 1024)}MB max).`);
+        return;
+      }
+      setExtracting(true);
+      try {
+        const base64 = await fileToBase64(f);
+        const res = await extractPdfTransactions(base64);
+        if (!res.ok) {
+          setPickError(res.error);
+          return;
+        }
+        resetFile();
+        setFile(f);
+        setSource("pdf");
+        setPdfRows(res.rows);
+      } catch {
+        setPickError("Couldn't read that PDF — try a different file.");
+      } finally {
+        setExtracting(false);
+      }
+      return;
+    }
+
     if (f.size > MAX_FILE_BYTES) {
       setPickError("That file is too large (5MB max).");
       return;
@@ -117,10 +184,11 @@ export function TaxCsvImport({
       setPickError("Couldn't find a header row plus at least one data row in that file.");
       return;
     }
+    resetFile();
     setFile(f);
+    setSource("csv");
     setHeaders(rows[0]);
     setDataRows(rows.slice(1));
-    setCategoryId("");
 
     const lower = rows[0].map((h) => h.toLowerCase());
     const guess = (needles: string[]) => {
@@ -136,16 +204,19 @@ export function TaxCsvImport({
   const amountIdx = headers.indexOf(amountCol);
   const descIdx = headers.indexOf(descCol);
 
-  const { validRows, invalidCount } = useMemo(() => {
-    if (dateIdx < 0 || amountIdx < 0) return { validRows: [] as { date: string; amount: number; description: string | null }[], invalidCount: 0 };
+  const { validRows: csvValidRows, invalidCount } = useMemo(() => {
+    if (dateIdx < 0 || amountIdx < 0) return { validRows: [] as ParsedRow[], invalidCount: 0 };
     const all = dataRows.map((r) => ({
       date: parseDate(r[dateIdx] ?? ""),
       amount: parseAmount(r[amountIdx] ?? ""),
       description: descIdx >= 0 ? (r[descIdx] ?? "").trim() || null : null,
     }));
-    const valid = all.filter((r): r is { date: string; amount: number; description: string | null } => r.date !== null && r.amount !== null && r.amount !== 0);
+    const valid = all.filter((r): r is ParsedRow => r.date !== null && r.amount !== null && r.amount !== 0);
     return { validRows: valid, invalidCount: all.length - valid.length };
   }, [dataRows, dateIdx, amountIdx, descIdx]);
+
+  const validRows = source === "pdf" ? pdfRows : csvValidRows;
+  const showPreview = source === "pdf" || (source === "csv" && dateIdx >= 0 && amountIdx >= 0);
 
   async function handleImport() {
     if (!file || !categoryId || validRows.length === 0) return;
@@ -155,13 +226,7 @@ export function TaxCsvImport({
     setImporting(false);
     if (res.ok) {
       setResult({ ok: true, message: `Imported ${res.inserted} row${res.inserted === 1 ? "" : "s"} from ${file.name}.` });
-      setFile(null);
-      setHeaders([]);
-      setDataRows([]);
-      setDateCol("");
-      setAmountCol("");
-      setDescCol("");
-      setCategoryId("");
+      resetFile();
       router.refresh();
     } else {
       setResult({ ok: false, message: res.error ?? "Import failed." });
@@ -174,14 +239,42 @@ export function TaxCsvImport({
         <label
           htmlFor={inputId}
           className="flex items-center justify-center rounded-[9px] border border-dashed text-[12px] cursor-pointer"
-          style={{ borderColor: "var(--border-soft)", background: "var(--surface-2)", color: "var(--text-mute)", height: 64 }}
+          style={{
+            borderColor: dragOver ? "var(--accent-line)" : "var(--border-soft)",
+            background: dragOver ? "var(--surface)" : "var(--surface-2)",
+            color: dragOver ? "var(--text)" : "var(--text-mute)",
+            height: 64,
+            textAlign: "center",
+            padding: "0 12px",
+          }}
+          onDragOver={(e) => {
+            // Without this, the browser's default is to treat the drop as a
+            // navigation (open the file in the tab) rather than firing onDrop
+            // at all — this is what made dragging a CSV onto the box do
+            // nothing (or blow away the page) instead of importing it.
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFile(e.dataTransfer.files?.[0]);
+          }}
         >
-          Click to pick a CSV file to import (account purchases, payout exports, anything spreadsheet-shaped)
+          {extracting
+            ? "Reading PDF…"
+            : dragOver
+              ? "Drop it"
+              : "Click or drag a CSV or PDF file here to import (account purchases, payout exports, statements)"}
         </label>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="text-[12px]" style={{ color: "var(--text-soft)" }}>
-            <span className="mono">{file.name}</span> — {dataRows.length} row{dataRows.length === 1 ? "" : "s"} found
+            <span className="mono">{file.name}</span> —{" "}
+            {source === "pdf"
+              ? `${pdfRows.length} transaction${pdfRows.length === 1 ? "" : "s"} found`
+              : `${dataRows.length} row${dataRows.length === 1 ? "" : "s"} found`}
           </div>
 
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
@@ -208,46 +301,60 @@ export function TaxCsvImport({
                 name="importCategoryId"
               />
             </div>
-            <div className="field">
-              <label>Date column</label>
-              <select value={dateCol} onChange={(e) => setDateCol(e.target.value)}>
-                <option value="">Select…</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Amount column</label>
-              <select value={amountCol} onChange={(e) => setAmountCol(e.target.value)}>
-                <option value="">Select…</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Description column (optional)</label>
-              <select value={descCol} onChange={(e) => setDescCol(e.target.value)}>
-                <option value="">None</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {source === "csv" && (
+              <>
+                <div className="field">
+                  <label>Date column</label>
+                  <select value={dateCol} onChange={(e) => setDateCol(e.target.value)}>
+                    <option value="">Select…</option>
+                    {headers.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Amount column</label>
+                  <select value={amountCol} onChange={(e) => setAmountCol(e.target.value)}>
+                    <option value="">Select…</option>
+                    {headers.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Description column (optional)</label>
+                  <select value={descCol} onChange={(e) => setDescCol(e.target.value)}>
+                    <option value="">None</option>
+                    {headers.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
-          {dateIdx >= 0 && amountIdx >= 0 && (
+          {showPreview && (
             <div>
               <div className="text-[12px] mb-1.5" style={{ color: "var(--text-soft)" }}>
-                {validRows.length} row{validRows.length === 1 ? "" : "s"} look valid
-                {invalidCount > 0 ? `, ${invalidCount} skipped (couldn't read a date or amount — double check the column picks)` : ""}.
+                {source === "pdf" ? (
+                  <>
+                    {validRows.length} row{validRows.length === 1 ? "" : "s"} read from the PDF — this is a
+                    best-effort scan of the file&apos;s text, so double-check them below before importing.
+                  </>
+                ) : (
+                  <>
+                    {validRows.length} row{validRows.length === 1 ? "" : "s"} look valid
+                    {invalidCount > 0 ? `, ${invalidCount} skipped (couldn't read a date or amount — double check the column picks)` : ""}
+                    .
+                  </>
+                )}
               </div>
               {validRows.length > 0 && (
                 <div className="table-card">
@@ -288,16 +395,7 @@ export function TaxCsvImport({
             >
               {importing ? "Importing…" : `Import ${validRows.length || ""} row${validRows.length === 1 ? "" : "s"}`}
             </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setFile(null);
-                setHeaders([]);
-                setDataRows([]);
-                setResult(null);
-              }}
-            >
+            <button type="button" className="btn btn-ghost" onClick={resetFile}>
               Cancel
             </button>
           </div>
@@ -307,7 +405,7 @@ export function TaxCsvImport({
       <input
         id={inputId}
         type="file"
-        accept=".csv,text/csv,text/plain"
+        accept=".csv,text/csv,text/plain,.pdf,application/pdf"
         className="sr-only"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />

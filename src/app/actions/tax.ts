@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getAccountById, getPayoutById, getTaxCategoryById, getTaxEntryById } from "@/db/queries";
+import { extractTransactionsFromPdf, type PdfCandidateRow } from "@/lib/pdfTransactions";
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: "United States",
@@ -231,6 +232,48 @@ export async function deleteTaxEntry(id: string) {
 // affiliate dashboard) exports can be pointed at it by picking which columns
 // mean what. Parsing itself happens client-side in TaxCsvImport.tsx; this
 // action just receives the already-parsed rows and writes them.
+// PDF sibling of the CSV path above — same destination shape ({date,
+// amount, description} rows handed to importTaxEntries below), different
+// source parsing since a PDF has no columns to map. See
+// src/lib/pdfTransactions.ts for how the rows get pulled out. Runs the
+// (somewhat heavier) PDF text extraction in a server action rather than in
+// the browser — see that file's header comment for why.
+const MAX_PDF_BYTES = 4 * 1024 * 1024; // base64-encoded, this is ~5.4MB over the wire — see serverActions.bodySizeLimit in next.config.ts
+
+export async function extractPdfTransactions(
+  base64: string,
+): Promise<{ ok: true; rows: PdfCandidateRow[] } | { ok: false; error: string }> {
+  await requireUser();
+
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(Buffer.from(base64, "base64"));
+  } catch {
+    return { ok: false, error: "Couldn't read that file." };
+  }
+  if (bytes.byteLength === 0) return { ok: false, error: "That file is empty." };
+  if (bytes.byteLength > MAX_PDF_BYTES) {
+    return { ok: false, error: `That PDF is too large (${Math.round(MAX_PDF_BYTES / 1024 / 1024)}MB max).` };
+  }
+
+  let rows: PdfCandidateRow[];
+  try {
+    rows = await extractTransactionsFromPdf(bytes);
+  } catch {
+    return { ok: false, error: "Couldn't read that PDF — it may be password-protected or corrupted." };
+  }
+
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Couldn't find any date-and-amount lines in that PDF. It might be a scanned/image-only statement (no selectable text), or a layout this can't parse yet — you can still add entries by hand below.",
+    };
+  }
+
+  return { ok: true, rows };
+}
+
 export async function importTaxEntries(
   kind: "income" | "expense",
   categoryId: string,
