@@ -28,6 +28,12 @@ export async function createAccount(formData: FormData) {
     | "closed";
   const startingBalanceRaw = String(formData.get("startingBalance") ?? "").trim();
   const groupIdRaw = String(formData.get("groupId") ?? "").trim();
+  // How many identical accounts to create in one go — e.g. 20 separate
+  // Apex evals, all the same size/firm/status/group, instead of submitting
+  // this form 20 times. Clamped to a sane range; 1 (the default) behaves
+  // exactly as a single account always has, name untouched.
+  const quantityRaw = String(formData.get("quantity") ?? "1").trim();
+  const quantity = Math.max(1, Math.min(100, parseInt(quantityRaw, 10) || 1));
 
   if (!name) {
     throw new Error("Account name is required");
@@ -43,16 +49,20 @@ export async function createAccount(formData: FormData) {
     groupId = group?.id ?? null;
   }
 
-  await db.insert(accounts).values({
+  const rows = Array.from({ length: quantity }, (_, i) => ({
     userId: user.id,
-    name,
+    // Only number the name when actually making more than one — a single
+    // account still gets exactly the name typed in, no "#1" tacked on.
+    name: quantity > 1 ? `${name} #${i + 1}` : name,
     type,
     firm: firm || null,
     sizeUsd: sizeUsdRaw || null,
     status,
     startingBalance: startingBalanceRaw || sizeUsdRaw || "0",
     groupId,
-  });
+  }));
+
+  await db.insert(accounts).values(rows);
 
   revalidatePath("/accounts");
   revalidatePath("/add-trade");

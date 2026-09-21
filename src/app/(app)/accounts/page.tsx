@@ -337,9 +337,18 @@ export default async function AccountsPage() {
             <label>Starting Balance ($, if different)</label>
             <input type="number" name="startingBalance" step="1" placeholder="defaults to account size" />
           </div>
+          <div className="field">
+            <label>How Many? (optional)</label>
+            <input type="number" name="quantity" min={1} max={100} step="1" defaultValue={1} />
+            <div className="sub" style={{ marginTop: 4 }}>
+              More than 1 creates that many accounts in one go — all the same type/firm/size/status/group — numbered
+              &quot;#1&quot;, &quot;#2&quot;, etc. after the name (e.g. 20× &quot;Apex 50k&quot; → &quot;Apex 50k #1&quot;
+              … &quot;Apex 50k #20&quot;).
+            </div>
+          </div>
           <div className="field md:col-span-3 flex items-end">
             <button type="submit" className="btn btn-primary">
-              + Add Account
+              + Add Account(s)
             </button>
           </div>
         </form>
