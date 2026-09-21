@@ -15,6 +15,11 @@ export type FilterPillItem = {
   active: boolean;
   // The raw value this pill represents, written to the cookie on click.
   cookieValue: string;
+  // "group" gets a visually distinct pill (dashed border) — used by the
+  // PnL Calendar to set an account group's pills apart from its individual
+  // account pills in the same row, so it's clear a click toggles several
+  // accounts at once rather than just the one it's labeled with.
+  variant?: "group";
 };
 
 export function PersistedFilterPills({ items, cookieName }: { items: FilterPillItem[]; cookieName: string }) {
@@ -31,7 +36,12 @@ export function PersistedFilterPills({ items, cookieName }: { items: FilterPillI
   return (
     <div className="acct-pills">
       {items.map((item) => (
-        <Link key={item.key} href={item.href} className={`acct-pill${item.active ? " active" : ""}`} onClick={() => remember(item.cookieValue)}>
+        <Link
+          key={item.key}
+          href={item.href}
+          className={`acct-pill${item.active ? " active" : ""}${item.variant === "group" ? " group" : ""}`}
+          onClick={() => remember(item.cookieValue)}
+        >
           <span className="dot" /> {item.label}
         </Link>
       ))}

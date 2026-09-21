@@ -1414,6 +1414,13 @@ td.ev-fee-cell {
   border-color: var(--accent-line);
   color: var(--accent-strong);
 }
+.acct-pill.group {
+  border-style: dashed;
+  font-weight: 700;
+}
+.acct-pill.group.active {
+  border-style: solid;
+}
 .acct-pill .dot {
   width: 6px;
   height: 6px;

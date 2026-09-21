@@ -51,7 +51,7 @@ export default async function CalendarPage({
   const { month: monthParamRaw, accounts: accountsParamRaw } = await searchParams;
   const monthDate = parseMonthParam(monthParamRaw);
   const user = await requireUser();
-  const { accounts } = await getFormOptions(user.id);
+  const { accounts, accountGroups } = await getFormOptions(user.id);
 
   const cookieStore = await cookies();
   const accountsCookie = cookieStore.get(ACCOUNTS_COOKIE)?.value;
@@ -143,6 +143,33 @@ export default async function CalendarPage({
     return `/calendar?${params.toString()}`;
   }
 
+  // Same toggle idea as a single account, scaled to a whole group — click a
+  // group pill and either every account in it joins the current selection,
+  // or (if the whole group was already selected) all of them drop out
+  // together. Takes trades over several firms — several accounts under one
+  // group — from "click each one" down to one click.
+  function groupIsFullySelected(groupAccountIds: string[]) {
+    return groupAccountIds.length > 0 && groupAccountIds.every((id) => selectedIds.includes(id));
+  }
+
+  function toggleGroupValue(groupAccountIds: string[]) {
+    const next = groupIsFullySelected(groupAccountIds)
+      ? selectedIds.filter((id) => !groupAccountIds.includes(id))
+      : Array.from(new Set([...selectedIds, ...groupAccountIds]));
+    return next.length === 0 ? "none" : next.length === accounts.length ? "all" : next.join(",");
+  }
+
+  function toggleGroupHref(groupAccountIds: string[]) {
+    const params = new URLSearchParams();
+    params.set("month", monthParam(monthDate));
+    params.set("accounts", toggleGroupValue(groupAccountIds));
+    return `/calendar?${params.toString()}`;
+  }
+
+  const groupsWithAccounts = accountGroups
+    .map((g) => ({ group: g, accountIds: accounts.filter((a) => a.groupId === g.id).map((a) => a.id) }))
+    .filter((g) => g.accountIds.length > 0);
+
   return (
     <div>
       <PageHead title="PnL Calendar" subtitle="Daily P&L across whichever accounts you pick." />
@@ -173,6 +200,18 @@ export default async function CalendarPage({
               cookieValue: "all",
               href: `/calendar?${new URLSearchParams({ month: monthParam(monthDate), accounts: "all" }).toString()}`,
             },
+            // Group pills — one click selects/deselects every account under
+            // that group (e.g. every Apex account), for trading the same
+            // signal across several firms. Dashed border sets them apart
+            // from the individual account pills that follow.
+            ...groupsWithAccounts.map(({ group, accountIds }) => ({
+              key: `group:${group.id}`,
+              label: group.name,
+              active: groupIsFullySelected(accountIds),
+              cookieValue: toggleGroupValue(accountIds),
+              href: toggleGroupHref(accountIds),
+              variant: "group" as const,
+            })),
             ...accounts.map((a) => ({
               key: a.id,
               label: a.name,
