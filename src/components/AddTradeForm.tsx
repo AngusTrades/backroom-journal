@@ -7,8 +7,11 @@ import { EntryModelPicker } from "@/components/EntryModelPicker";
 import { PairPicker } from "@/components/PairPicker";
 import { ChartImageInput } from "@/components/ChartImageInput";
 import { RrOutcomeFields } from "@/components/RrOutcomeFields";
+import { AccountMultiSelect } from "@/components/AccountMultiSelect";
 
 type Opt = { id: string; name: string };
+type AccountOpt = { id: string; name: string; groupId: string | null; firm: string | null };
+type GroupOpt = { id: string; name: string };
 type PairOpt = { id: string; symbol: string };
 type SetupOpt = { id: string; name: string };
 
@@ -20,13 +23,15 @@ const initialState: TradeFormState = {};
 // of React's own automatic reset-on-submit behavior in the first place.
 export function AddTradeForm({
   accounts,
+  accountGroups,
   pairs,
   entryModels,
   sessions,
   setups,
   today,
 }: {
-  accounts: Opt[];
+  accounts: AccountOpt[];
+  accountGroups: GroupOpt[];
   pairs: PairOpt[];
   entryModels: Opt[];
   sessions: Opt[];
@@ -57,7 +62,6 @@ export function AddTradeForm({
   }
 
   const [date, setDate] = useState(today);
-  const [accountId, setAccountId] = useState("");
   const [position, setPosition] = useState<"long" | "short">("long");
   const [sessionId, setSessionId] = useState("");
   const [pnlUsd, setPnlUsd] = useState("");
@@ -80,19 +84,6 @@ export function AddTradeForm({
               onChange={(e) => setDate(e.target.value)}
               required
             />
-          </div>
-          <div className="field">
-            <label htmlFor="accountId">Account</label>
-            <select id="accountId" name="accountId" required value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="" disabled>
-                Select account
-              </option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
           </div>
           <div className="field">
             <label htmlFor="position">Position</label>
@@ -133,6 +124,13 @@ export function AddTradeForm({
         <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
           Enter the real dollar result if you know it — it flows straight into this account&apos;s current balance and
           the PnL calendar. Leave it blank to keep tracking this trade in R only.
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1.5 block text-xs" style={{ color: "var(--text-soft)" }}>
+            Account(s) — select one or more, or a whole group, to log this trade across several firms at once
+          </label>
+          <AccountMultiSelect accounts={accounts} groups={accountGroups} />
         </div>
 
         <div className="mt-4">

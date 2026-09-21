@@ -40,7 +40,12 @@ export async function createTrade(_prevState: TradeFormState, formData: FormData
   const user = await requireUser();
 
   const date = String(formData.get("date") ?? "");
-  const accountId = String(formData.get("accountId") ?? "");
+  // Journaling the same trade across several accounts/firms at once (a
+  // member running the same signal on 5 Apex accounts, say) — one or more
+  // accounts, deduped in case a group selection and an individual pick
+  // overlap. Every other field below is shared across all of them; only
+  // accountId varies per inserted row.
+  const accountIds = Array.from(new Set(formData.getAll("accountIds").map(String).filter(Boolean)));
   const pairId = String(formData.get("pairId") ?? "");
   const entryModelId = String(formData.get("entryModelId") ?? "") || null;
   const position = String(formData.get("position") ?? "long") as "long" | "short";
@@ -59,17 +64,19 @@ export async function createTrade(_prevState: TradeFormState, formData: FormData
   // generic "some fields are required" when the other two are obviously
   // filled in.
   if (!date) return { error: "Pick a date and time." };
-  if (!accountId) return { error: "Pick an account." };
+  if (accountIds.length === 0) return { error: "Pick at least one account." };
   if (!pairId) {
     return { error: "Pick a pair before saving — use the pair picker below (add one with \"+ Add\" first if you haven't yet)." };
   }
 
-  // Make sure the account this trade is being journaled against actually
+  // Make sure every account this trade is being journaled against actually
   // belongs to the signed-in member — otherwise a tampered accountId in the
-  // form could log a trade onto someone else's account.
-  const account = await getAccountById(accountId, user.id);
-  if (!account) {
-    return { error: "That account doesn't belong to your login." };
+  // form could log a trade onto someone else's account. Rejects the whole
+  // submission if any one of them doesn't check out, rather than silently
+  // dropping just that account.
+  const ownedAccounts = await Promise.all(accountIds.map((id) => getAccountById(id, user.id)));
+  if (ownedAccounts.some((a) => !a)) {
+    return { error: "One of the selected accounts doesn't belong to your login." };
   }
 
   // Pairs are per-member now too (like entry models/setups), so a tampered
@@ -89,35 +96,42 @@ export async function createTrade(_prevState: TradeFormState, formData: FormData
     }
   }
 
-  const [inserted] = await db
+  // Same R:R/outcome/P&L/narrative on every selected account — dollar P&L
+  // will often actually differ per account (different sizing on the same
+  // move), so a member logging across several accounts at once should
+  // still open each inserted trade afterward and adjust its own $ figure
+  // if it wasn't identical everywhere.
+  const insertedRows = await db
     .insert(trades)
-    .values({
-      date: new Date(date),
-      accountId,
-      pairId,
-      entryModelId,
-      position,
-      sessionId,
-      rr,
-      outcome,
-      pnlUsd: pnlUsdRaw ? pnlUsdRaw : null,
-      preTrade,
-      management,
-      review,
-      chartImageUrl,
-    })
+    .values(
+      accountIds.map((accountId) => ({
+        date: new Date(date),
+        accountId,
+        pairId,
+        entryModelId,
+        position,
+        sessionId,
+        rr,
+        outcome,
+        pnlUsd: pnlUsdRaw ? pnlUsdRaw : null,
+        preTrade,
+        management,
+        review,
+        chartImageUrl,
+      })),
+    )
     .returning({ id: trades.id });
 
-  if (setupIds.length > 0 && inserted) {
+  if (setupIds.length > 0 && insertedRows.length > 0) {
     await db.insert(tradeSetups).values(
-      setupIds.map((setupId) => ({ tradeId: inserted.id, setupId })),
+      insertedRows.flatMap((row) => setupIds.map((setupId) => ({ tradeId: row.id, setupId }))),
     );
   }
 
   revalidatePath("/");
   revalidatePath("/analytics");
   revalidatePath("/accounts");
-  revalidatePath(`/accounts/${accountId}`);
+  for (const accountId of accountIds) revalidatePath(`/accounts/${accountId}`);
   revalidatePath("/calendar");
   redirect("/");
 }

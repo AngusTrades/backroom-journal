@@ -7,13 +7,21 @@ export const dynamic = "force-dynamic";
 
 export default async function AddTradePage() {
   const user = await requireUser();
-  const { accounts, pairs, entryModels, sessions, setups } = await getFormOptions(user.id);
+  const { accounts, accountGroups, pairs, entryModels, sessions, setups } = await getFormOptions(user.id);
   const today = new Date().toISOString().slice(0, 16);
 
   return (
     <div>
       <PageHead title="Add Trade" subtitle="Log a trade — pick every confluence that applied, not just one." />
-      <AddTradeForm accounts={accounts} pairs={pairs} entryModels={entryModels} sessions={sessions} setups={setups} today={today} />
+      <AddTradeForm
+        accounts={accounts}
+        accountGroups={accountGroups}
+        pairs={pairs}
+        entryModels={entryModels}
+        sessions={sessions}
+        setups={setups}
+        today={today}
+      />
     </div>
   );
 }

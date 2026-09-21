@@ -77,14 +77,22 @@ export async function getTradesWithDetails(userId: string) {
 }
 
 export async function getFormOptions(userId: string) {
-  const [accountRows, pairRows, entryModelRows, sessionRows, setupRows] = await Promise.all([
+  const [accountRows, pairRows, entryModelRows, sessionRows, setupRows, accountGroupRows] = await Promise.all([
     db.select().from(accounts).where(eq(accounts.userId, userId)).orderBy(accounts.name),
     db.select().from(pairs).where(eq(pairs.userId, userId)).orderBy(pairs.symbol),
     db.select().from(entryModels).where(eq(entryModels.userId, userId)).orderBy(entryModels.name),
     db.select().from(sessions).orderBy(sessions.name),
     db.select().from(setups).where(eq(setups.userId, userId)).orderBy(setups.name),
+    db.select().from(accountGroups).where(eq(accountGroups.userId, userId)).orderBy(accountGroups.name),
   ]);
-  return { accounts: accountRows, pairs: pairRows, entryModels: entryModelRows, sessions: sessionRows, setups: setupRows };
+  return {
+    accounts: accountRows,
+    pairs: pairRows,
+    entryModels: entryModelRows,
+    sessions: sessionRows,
+    setups: setupRows,
+    accountGroups: accountGroupRows,
+  };
 }
 
 export async function getAccountsWithStats(userId: string) {
