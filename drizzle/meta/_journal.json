@@ -85,6 +85,13 @@
       "when": 1789812855399,
       "tag": "0011_talented_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790003399564,
+      "tag": "0012_married_stick",
+      "breakpoints": true
     }
   ]
 }
