@@ -19,6 +19,7 @@ import { DeletePayoutButton } from "@/components/DeletePayoutButton";
 import { TaxCsvImport } from "@/components/TaxCsvImport";
 import { UndoImportBatchButton } from "@/components/UndoImportBatchButton";
 import { PrintButton } from "@/components/PrintButton";
+import { computeBracketTax, getCountryTaxModel, getFilingStatusOptions } from "@/lib/taxBrackets";
 
 export const dynamic = "force-dynamic";
 
@@ -238,7 +239,19 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const ytd = payoutRows.filter((p) => p.date.getFullYear() === now.getFullYear());
   const grossYtd = ytd.reduce((s, p) => s + Number(p.grossAmount), 0);
   const setAsideYtd = ytd.reduce((s, p) => s + (Number(p.grossAmount) - Number(p.netAmount)), 0);
-  const blendedRate = Number(profile?.blendedRatePct ?? 0);
+
+  // Auto-calculated bracket rate, once a country with a bracket table is set
+  // and there's YTD income logged to bracket-match against. A manually
+  // entered blendedRatePct always wins over the auto figure — it's an
+  // override, not a second source of truth.
+  const countryCode = profile?.countryCode ?? "US";
+  const taxModel = getCountryTaxModel(countryCode);
+  const filingStatusOptions = getFilingStatusOptions(countryCode);
+  const bracketResult = taxModel && grossYtd > 0 ? computeBracketTax(countryCode, profile?.filingStatus ?? taxModel.defaultStatus, grossYtd) : null;
+  const manualRateOverride = profile?.blendedRatePct ? Number(profile.blendedRatePct) : null;
+  const isAutoRate = manualRateOverride === null && bracketResult !== null;
+  const blendedRate = manualRateOverride ?? bracketResult?.effectiveRatePct ?? 0;
+
   const estTaxOwedYtd = grossYtd * (blendedRate / 100);
   const shortfall = setAsideYtd - estTaxOwedYtd;
   const setAsidePct = estTaxOwedYtd > 0 ? Math.min(100, (setAsideYtd / estTaxOwedYtd) * 100) : 100;
@@ -268,8 +281,10 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           </div>
         </div>
         <div className="kpi">
-          <div className="k">Blended Rate</div>
-          <div className="v">{blendedRate ? `${blendedRate.toFixed(0)}%` : "—"}</div>
+          <div className="k">
+            {isAutoRate ? "Blended Rate (auto)" : manualRateOverride !== null ? "Blended Rate (override)" : "Blended Rate"}
+          </div>
+          <div className="v">{blendedRate ? `${blendedRate.toFixed(1)}%` : "—"}</div>
         </div>
       </div>
 
@@ -289,25 +304,72 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
             </div>
             <div className="field">
               <label>Filing Status</label>
-              <input type="text" name="filingStatus" defaultValue={profile?.filingStatus ?? ""} placeholder="e.g. Individual" />
+              {filingStatusOptions && filingStatusOptions.length > 1 ? (
+                <select
+                  name="filingStatus"
+                  defaultValue={
+                    profile?.filingStatus && filingStatusOptions.some((o) => o.value === profile.filingStatus)
+                      ? profile.filingStatus
+                      : taxModel!.defaultStatus
+                  }
+                >
+                  {filingStatusOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : filingStatusOptions ? (
+                <>
+                  <input type="hidden" name="filingStatus" value={filingStatusOptions[0].value} />
+                  <div className="sub" style={{ padding: "9px 10px" }}>
+                    {filingStatusOptions[0].label} — filing status doesn&apos;t change your bracket here.
+                  </div>
+                </>
+              ) : (
+                <input type="text" name="filingStatus" defaultValue={profile?.filingStatus ?? ""} placeholder="e.g. Individual" />
+              )}
             </div>
             <div className="field">
-              <label>Blended Est. Rate (%)</label>
+              <label>{taxModel ? "Override Rate (%) — optional" : "Blended Est. Rate (%)"}</label>
               <input
                 type="number"
                 name="blendedRatePct"
                 step="0.1"
                 defaultValue={profile?.blendedRatePct ?? ""}
-                placeholder="e.g. 29"
+                placeholder={taxModel ? `auto: ${bracketResult ? bracketResult.effectiveRatePct.toFixed(1) : "—"}%` : "e.g. 29"}
               />
             </div>
             <button type="submit" className="btn btn-ghost">
               Save Filing Region
             </button>
           </form>
+
+          {taxModel ? (
+            <div className="sub" style={{ marginTop: 12, lineHeight: 1.5 }}>
+              {bracketResult ? (
+                <>
+                  <strong style={{ color: "var(--text-soft)" }}>
+                    Auto-calculated from {fmtUsd(grossYtd)} logged this year: {bracketResult.effectiveRatePct.toFixed(1)}% effective
+                    ({bracketResult.marginalRatePct.toFixed(0)}% marginal bracket).
+                  </strong>{" "}
+                  {manualRateOverride !== null && "Currently overridden by the rate above."} {taxModel.note}
+                </>
+              ) : (
+                <>Log a payout to see your bracket auto-calculate. {taxModel.note}</>
+              )}
+            </div>
+          ) : (
+            <div className="sub" style={{ marginTop: 12 }}>
+              Bracket auto-calc isn&apos;t set up for {COUNTRIES.find((c) => c.code === countryCode)?.name ?? countryCode} yet — enter
+              your own blended rate above.
+            </div>
+          )}
+
           <div className="disclaimer">
-            Estimate only, not tax advice — rates you enter are your own illustrative placeholders. Confirm actual
-            treatment with a licensed accountant for your country before relying on these numbers.
+            Estimate only, not tax advice — brackets are simplified (see the note above) and any rate you enter yourself is your own
+            illustrative placeholder. Confirm actual treatment with a licensed accountant for your country before relying on these
+            numbers.
           </div>
         </div>
 
