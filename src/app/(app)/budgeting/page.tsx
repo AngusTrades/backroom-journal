@@ -483,11 +483,16 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
               </div>
             ) : (
               summary.income.map((cat) => (
-                <div key={cat.categoryName} className="tax-category-block">
-                  <div className="tax-category-head">
-                    <span>{cat.categoryName}</span>
+                <details key={cat.categoryName} className="tax-category-block">
+                  <summary className="tax-category-head" style={{ cursor: "pointer", listStyle: "none" }}>
+                    <span>
+                      {cat.categoryName}{" "}
+                      <span className="sub" style={{ fontWeight: 400 }}>
+                        {cat.lines.length} {cat.lines.length === 1 ? "entry" : "entries"}
+                      </span>
+                    </span>
                     <span className="amt">{fmtUsd2(cat.total)}</span>
-                  </div>
+                  </summary>
                   {cat.lines.map((line) => (
                     <div key={line.id} className="tax-line-row">
                       <span className="desc">
@@ -496,7 +501,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                       <span className="amt">{fmtUsd2(line.amount)}</span>
                     </div>
                   ))}
-                </div>
+                </details>
               ))
             )}
           </div>
@@ -514,11 +519,16 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
               </div>
             ) : (
               summary.expense.map((cat) => (
-                <div key={cat.categoryName} className="tax-category-block">
-                  <div className="tax-category-head">
-                    <span>{cat.categoryName}</span>
+                <details key={cat.categoryName} className="tax-category-block">
+                  <summary className="tax-category-head" style={{ cursor: "pointer", listStyle: "none" }}>
+                    <span>
+                      {cat.categoryName}{" "}
+                      <span className="sub" style={{ fontWeight: 400 }}>
+                        {cat.lines.length} {cat.lines.length === 1 ? "entry" : "entries"}
+                      </span>
+                    </span>
                     <span className="amt">{fmtUsd2(cat.total)}</span>
-                  </div>
+                  </summary>
                   {cat.lines.map((line) => (
                     <div key={line.id} className="tax-line-row">
                       <span className="desc">
@@ -527,7 +537,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                       <span className="amt">{fmtUsd2(line.amount)}</span>
                     </div>
                   ))}
-                </div>
+                </details>
               ))
             )}
           </div>

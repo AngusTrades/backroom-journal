@@ -1913,4 +1913,13 @@ html[data-privacy="on"] .money::after {
     color: #000 !important;
     border-color: #ccc !important;
   }
+  /* The Income/Expense category blocks are collapsible <details> on screen
+     (see .tax-category-block below) so a category with hundreds of entries
+     doesn't crowd the page — but "Print / Save as PDF" should still produce
+     the fully itemized ledger regardless of which categories happen to be
+     expanded when Print is clicked. This overrides the browser's native
+     "hide everything but <summary> when not open" behavior for print only. */
+  .print-area details:not([open]) > *:not(summary) {
+    display: block !important;
+  }
 }
