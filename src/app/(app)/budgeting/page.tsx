@@ -252,6 +252,20 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const grossYtd = ytd.reduce((s, p) => s + Number(p.grossAmount), 0);
   const setAsideYtd = ytd.reduce((s, p) => s + (Number(p.grossAmount) - Number(p.netAmount)), 0);
 
+  // Logged income entries (manual + CSV/PDF-imported) for the *current
+  // calendar year* specifically — separate from `incomeEntries` above,
+  // which is scoped to whatever tax `year` is selected in the Tax Year
+  // Summary below. Reuses that fetch when the two years match (the common
+  // case) instead of firing a second query.
+  const incomeEntriesForCurrentYear =
+    year === now.getFullYear() ? incomeEntries : (await getTaxEntriesForYear(user.id, now.getFullYear())).filter((e) => e.kind === "income");
+  const loggedIncomeYtd = incomeEntriesForCurrentYear.reduce((s, e) => s + Number(e.amount), 0);
+  // Total income YTD — payouts plus everything logged as income (manual
+  // entries and CSV/PDF imports), so a member paid mostly through Whop/
+  // affiliate income rather than account payouts still gets an accurate
+  // tax owed / set-aside estimate instead of one based on payouts alone.
+  const totalIncomeYtd = grossYtd + loggedIncomeYtd;
+
   // Auto-calculated bracket rate, once a country with a bracket table is set
   // and there's YTD income logged to bracket-match against. A manually
   // entered blendedRatePct always wins over the auto figure — it's an
@@ -259,12 +273,13 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const countryCode = profile?.countryCode ?? "US";
   const taxModel = getCountryTaxModel(countryCode);
   const filingStatusOptions = getFilingStatusOptions(countryCode);
-  const bracketResult = taxModel && grossYtd > 0 ? computeBracketTax(countryCode, profile?.filingStatus ?? taxModel.defaultStatus, grossYtd) : null;
+  const bracketResult =
+    taxModel && totalIncomeYtd > 0 ? computeBracketTax(countryCode, profile?.filingStatus ?? taxModel.defaultStatus, totalIncomeYtd) : null;
   const manualRateOverride = profile?.blendedRatePct ? Number(profile.blendedRatePct) : null;
   const isAutoRate = manualRateOverride === null && bracketResult !== null;
   const blendedRate = manualRateOverride ?? bracketResult?.effectiveRatePct ?? 0;
 
-  const estTaxOwedYtd = grossYtd * (blendedRate / 100);
+  const estTaxOwedYtd = totalIncomeYtd * (blendedRate / 100);
   const shortfall = setAsideYtd - estTaxOwedYtd;
   const setAsidePct = estTaxOwedYtd > 0 ? Math.min(100, (setAsideYtd / estTaxOwedYtd) * 100) : 100;
 
@@ -292,8 +307,8 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
 
       <div className="kpi-row kpi-row-5">
         <div className="kpi">
-          <div className="k">Payouts YTD</div>
-          <div className="v good money">{fmtUsd(grossYtd)}</div>
+          <div className="k">Total Income YTD</div>
+          <div className="v good money">{fmtUsd(totalIncomeYtd)}</div>
         </div>
         <div className="kpi">
           <div className="k">Est. Tax Owed YTD</div>
@@ -380,7 +395,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
               {bracketResult ? (
                 <>
                   <strong style={{ color: "var(--text-soft)" }}>
-                    Auto-calculated from {fmtUsd(grossYtd)} logged this year: {bracketResult.effectiveRatePct.toFixed(1)}% effective
+                    Auto-calculated from {fmtUsd(totalIncomeYtd)} logged this year: {bracketResult.effectiveRatePct.toFixed(1)}% effective
                     ({bracketResult.marginalRatePct.toFixed(0)}% marginal bracket).
                   </strong>{" "}
                   {manualRateOverride !== null && "Currently overridden by the rate above."} {taxModel.note}
