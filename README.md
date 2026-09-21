@@ -129,6 +129,11 @@ Actions — no mock data, no client-side API layer.
    DATABASE_URL="postgresql://user:password@host:5432/backroom_journal"
    ```
 
+   Optionally, also set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (see
+   `.env.example`) if you want "forgot password" reset emails to actually
+   send in local dev — see **Accounts & members** below for details. Without
+   these, everything else works fine; only that one feature is affected.
+
 4. **Run migrations and seed reference data:**
 
    ```bash
@@ -225,10 +230,22 @@ change:
 3. Run `npm run db:migrate` again — this second run locks the column in as
    required, now that every row has an owner.
 
-**What's not built yet:** password reset (no email-sending infra exists), so
-a forgotten password currently needs a direct database fix; email
-verification; any member management beyond invite codes (no way yet to see
-the member list or deactivate someone from the UI).
+**Password reset:** a member can reset their own password from `/login` →
+"Forgot password?" — enter the account's email, get a one-hour reset link by
+email (via [Resend](https://resend.com); see **Local setup** step 3 and
+**Deploying** below for the env vars it needs), set a new password. Resetting
+logs that member out everywhere else they were signed in, same as changing a
+password normally should. When the email address entered doesn't match an
+account, the form shows the same "if that email exists, we've sent a link"
+message as when it does — it never confirms which emails are registered.
+When it *does* match an account but `RESEND_API_KEY` isn't set (or the send
+otherwise fails), the member sees an error instead, since silently saying
+"check your email" with nothing actually sent would leave them stuck — check
+the server logs for the real Resend error if a member reports this.
+
+**What's not built yet:** email verification on signup; any member
+management beyond invite codes (no way yet to see the member list or
+deactivate someone from the UI).
 
 **Migrating an existing database to add Market Bias:** this one's simple —
 it's a brand-new table, so there's no existing data to back-fill. Just run
@@ -264,7 +281,11 @@ This is a standard Next.js app — it deploys to **Vercel** with zero config:
 2. Import it in Vercel.
 3. Set `DATABASE_URL` in the Vercel project's environment variables (point
    it at your Supabase connection string — use the pooled connection string
-   for serverless).
+   for serverless). Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` there too if
+   you want password-reset emails to actually deliver to members — the
+   `RESEND_FROM_EMAIL` address needs to be on a domain you've verified in
+   Resend, not their shared test domain, which only delivers to your own
+   Resend account's email.
 4. Deploy. Run `npm run db:migrate` once (locally, pointed at the prod
    `DATABASE_URL`, or via a one-off script) before first use.
 

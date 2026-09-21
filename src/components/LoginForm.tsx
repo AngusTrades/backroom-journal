@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { login, type AuthFormState } from "@/app/actions/auth";
 
@@ -15,7 +16,14 @@ export function LoginForm() {
         <input type="email" id="email" name="email" autoComplete="email" required />
       </div>
       <div className="field">
-        <label htmlFor="password">Password</label>
+        <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+          <label htmlFor="password" style={{ marginBottom: 0 }}>
+            Password
+          </label>
+          <Link href="/forgot-password" className="link" style={{ fontSize: 12 }}>
+            Forgot password?
+          </Link>
+        </div>
         <input type="password" id="password" name="password" autoComplete="current-password" required />
       </div>
       {state.error && (

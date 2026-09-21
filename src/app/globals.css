@@ -1695,6 +1695,17 @@ html[data-privacy="on"] .money::after {
   padding: 8px 10px;
 }
 
+/* Same shape as .auth-error, good-colored — "check your email", "password
+   reset, sign in with your new one" confirmations on the auth pages. */
+.auth-success {
+  font-size: 12.5px;
+  color: var(--good);
+  background: var(--good-soft);
+  border: 1px solid var(--good-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
 /* Generic inline form-error banner — same styling as .auth-error, just not
    scoped to the login/signup forms by name. Shown right above a submit
    button via useActionState instead of letting a validation problem throw
@@ -1743,6 +1754,9 @@ html[data-privacy="on"] .money::after {
 }
 .tax-category-head .amt {
   font-family: var(--font-data);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .tax-line-row {
   display: flex;
@@ -1779,6 +1793,23 @@ html[data-privacy="on"] .money::after {
 }
 .tax-net-row .amt {
   font-family: var(--font-data);
+}
+
+/* Shown under the net row only when the year's net result is a loss —
+   an estimate of what that loss could be worth back on the member's
+   taxes (see the computation next to summary.net in page.tsx). */
+.tax-refund-note {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+.tax-refund-note strong {
+  color: var(--text);
 }
 
 /* ============================================================
@@ -1921,5 +1952,40 @@ html[data-privacy="on"] .money::after {
      "hide everything but <summary> when not open" behavior for print only. */
   .print-area details:not([open]) > *:not(summary) {
     display: block !important;
+  }
+  /* Each line item (.tax-line-row) is normally a flex row that truncates
+     its description with an ellipsis once it's too long to fit next to the
+     amount on one line — fine for the on-screen view, but wrong for a
+     document that's meant to hand every account/reference/description to
+     the IRS, Skatteetaten, etc. in full. In print, stop truncating and
+     stack description above amount instead of squeezing them into a
+     shared row, so nothing gets cut off. */
+  .print-area .tax-line-row {
+    display: block !important;
+    padding: 7px 2px 7px 12px;
+  }
+  .print-area .tax-line-row .desc {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    margin-right: 0;
+    margin-bottom: 3px;
+  }
+  .print-area .tax-line-row .amt {
+    display: block;
+    text-align: right;
+  }
+  /* Potential-refund callout (see .tax-refund-note in page.tsx) — only
+     relevant when there's something to say, but give it room to breathe
+     and keep it from splitting across a page break when it does show.
+     Its on-screen dark-theme background isn't touched by the `.card`
+     background override above (background doesn't inherit), so without
+     this it renders as black text on its own dark background — set it
+     explicitly here too. */
+  .tax-refund-note {
+    background: #f4f4f4 !important;
+    border-color: #ccc !important;
+    break-inside: avoid;
   }
 }

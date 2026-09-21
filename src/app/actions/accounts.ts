@@ -64,6 +64,45 @@ export async function createAccount(formData: FormData) {
 // its trades and payouts, so this is destructive and irreversible. Scoped to
 // the current user's own accounts — id + userId both have to match, so
 // there's no way to delete someone else's account by guessing its id.
+// Called directly from a client component (not via <form action>), same
+// "+ New X…" pattern as createAccountGroup/createTaxCategory — returns the
+// created row so the caller (PayoutAccountSelect, on the Budgeting page's
+// "Log a Payout" form) can drop it straight into its own local list and
+// select it, without navigating to /accounts or resetting whatever else the
+// member has already typed into that form.
+//
+// Deliberately minimal — just a name (and optional firm), defaulted to
+// type "prop_firm" since an account being created specifically to log a
+// payout against is almost always a funded prop-firm account rather than a
+// paper/backtest one. Every other field (size, status, starting balance,
+// group) keeps the schema default; the member can fill those in later from
+// the Accounts page if they want the fuller picture there — this is a
+// shortcut for "I need an account to attach this payout to right now", not
+// a replacement for the full Add Account form. Unlike accountGroups/
+// taxCategories, accounts has no unique (userId, name) constraint — a
+// member can legitimately have two accounts named the same thing (e.g. two
+// separate "Apex 50k" evals) — so this always inserts a fresh row rather
+// than reusing one that matches by name.
+export async function createAccountQuick(name: string, firm: string) {
+  const user = await requireUser();
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  const [row] = await db
+    .insert(accounts)
+    .values({
+      userId: user.id,
+      name: trimmed,
+      type: "prop_firm",
+      firm: firm.trim() || null,
+      status: "active",
+      startingBalance: "0",
+    })
+    .returning();
+
+  return row ?? null;
+}
+
 export async function deleteAccount(id: string) {
   const user = await requireUser();
   if (!id) return;

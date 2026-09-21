@@ -1,33 +1,22 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { signup, type AuthFormState } from "@/app/actions/auth";
+import { resetPassword, type AuthFormState } from "@/app/actions/auth";
 
 const initialState: AuthFormState = {};
 
-export function SignupForm() {
-  const [state, formAction, pending] = useActionState(signup, initialState);
+export function ResetPasswordForm({ token }: { token: string }) {
+  const [state, formAction, pending] = useActionState(resetPassword, initialState);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Client-side check is just a fast, friendly nudge before submitting — the
-  // signup action re-validates the match server-side too (a client check
-  // alone can always be bypassed), same belt-and-suspenders pattern as the
-  // 8-character minLength on the password field below.
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   return (
     <form action={formAction} className="flex flex-col gap-3.5">
+      <input type="hidden" name="token" value={token} />
       <div className="field">
-        <label htmlFor="name">Name</label>
-        <input type="text" id="name" name="name" autoComplete="name" required />
-      </div>
-      <div className="field">
-        <label htmlFor="email">Email</label>
-        <input type="email" id="email" name="email" autoComplete="email" required />
-      </div>
-      <div className="field">
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">New password</label>
         <input
           type="password"
           id="password"
@@ -37,13 +26,14 @@ export function SignupForm() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          autoFocus
         />
         <div className="sub" style={{ marginTop: 4 }}>
           At least 8 characters.
         </div>
       </div>
       <div className="field">
-        <label htmlFor="confirmPassword">Confirm password</label>
+        <label htmlFor="confirmPassword">Confirm new password</label>
         <input
           type="password"
           id="confirmPassword"
@@ -60,13 +50,9 @@ export function SignupForm() {
           </div>
         )}
       </div>
-      <div className="field">
-        <label htmlFor="code">Invite code</label>
-        <input type="text" id="code" name="code" placeholder="e.g. from The Backroom Discord" required />
-      </div>
       {state.error && <div className="auth-error">{state.error}</div>}
       <button type="submit" className="btn btn-primary w-full justify-center" disabled={pending || mismatch}>
-        {pending ? "Creating account…" : "Create account"}
+        {pending ? "Saving…" : "Set new password"}
       </button>
     </form>
   );

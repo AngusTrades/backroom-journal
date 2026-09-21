@@ -8,17 +8,23 @@ import {
   getPayoutsForTaxYear,
   getTaxYears,
   getTaxImportBatches,
+  getReceiptsForYear,
   summarizeTaxYear,
 } from "@/db/queries";
 import { PageHead } from "@/components/PageHead";
 import { updateTaxProfile, createPayout } from "@/app/actions/tax";
 import { requireUser } from "@/lib/auth";
 import { TaxEntryForm } from "@/components/TaxEntryForm";
+import { PayoutAccountSelect } from "@/components/PayoutAccountSelect";
 import { DeleteTaxEntryButton } from "@/components/DeleteTaxEntryButton";
+import { DeleteTaxCategoryButton } from "@/components/DeleteTaxCategoryButton";
 import { DeletePayoutButton } from "@/components/DeletePayoutButton";
 import { TaxCsvImport } from "@/components/TaxCsvImport";
 import { UndoImportBatchButton } from "@/components/UndoImportBatchButton";
 import { PrintButton } from "@/components/PrintButton";
+import { ReceiptUpload } from "@/components/ReceiptUpload";
+import { DeleteReceiptButton } from "@/components/DeleteReceiptButton";
+import { BrokerStatementImport } from "@/components/BrokerStatementImport";
 import { computeBracketTax, getCountryTaxModel, getFilingStatusOptions } from "@/lib/taxBrackets";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +63,9 @@ function fmtUsd(n: number) {
 }
 function fmtUsd2(n: number) {
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function fmtLocal(n: number, currency: string) {
+  return `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${currency}`;
 }
 
 type TaxEntryRow = Awaited<ReturnType<typeof getTaxEntriesForYear>>[number];
@@ -106,6 +115,7 @@ function TaxEntryCategorySection({ group, kind }: { group: TaxEntryCategoryGroup
         <span className="amt" style={{ color }}>
           {sign}
           {fmtUsd2(group.total)}
+          <DeleteTaxCategoryButton categoryId={group.items[0].category.id} categoryName={group.categoryName} count={group.items.length} />
         </span>
       </summary>
       {group.items.map((e) => (
@@ -220,16 +230,18 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const nowYear = new Date().getFullYear();
   const year = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : nowYear;
 
-  const [payoutRows, profile, formOptions, categories, entriesForYear, yearPayouts, taxYears, importBatches] = await Promise.all([
-    getPayoutsWithAccount(user.id),
-    getTaxProfile(user.id),
-    getFormOptions(user.id),
-    getTaxCategories(user.id),
-    getTaxEntriesForYear(user.id, year),
-    getPayoutsForTaxYear(user.id, year),
-    getTaxYears(user.id),
-    getTaxImportBatches(user.id),
-  ]);
+  const [payoutRows, profile, formOptions, categories, entriesForYear, yearPayouts, taxYears, importBatches, receiptsForYear] =
+    await Promise.all([
+      getPayoutsWithAccount(user.id),
+      getTaxProfile(user.id),
+      getFormOptions(user.id),
+      getTaxCategories(user.id),
+      getTaxEntriesForYear(user.id, year),
+      getPayoutsForTaxYear(user.id, year),
+      getTaxYears(user.id),
+      getTaxImportBatches(user.id),
+      getReceiptsForYear(user.id, year),
+    ]);
 
   const summary = summarizeTaxYear(year, entriesForYear, yearPayouts);
   const incomeEntries = entriesForYear.filter((e) => e.kind === "income");
@@ -255,6 +267,24 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const estTaxOwedYtd = grossYtd * (blendedRate / 100);
   const shortfall = setAsideYtd - estTaxOwedYtd;
   const setAsidePct = estTaxOwedYtd > 0 ? Math.min(100, (setAsideYtd / estTaxOwedYtd) * 100) : 100;
+
+  // Potential deduction value — for the selected tax YEAR's net result
+  // (summary.net, not the YTD figure above), if losses outran gains. Uses
+  // the country's flat/base rate (Norway: the flat 22% "alminnelig
+  // inntekt" rate, i.e. the first bracket) rather than the blended rate
+  // above — trinnskatt and equivalent progressive add-ons generally tax
+  // personal/business income, not capital losses, so the top-bracket-
+  // inclusive blended rate would overstate what a loss is actually worth.
+  // A manually entered override rate still wins, same as everywhere else
+  // on this page. Converted to the filing country's own currency using
+  // the same ballpark FX rate taxBrackets.ts already uses for brackets.
+  const countryName = COUNTRIES.find((c) => c.code === countryCode)?.name ?? countryCode;
+  const netLossUsd = summary.net < 0 ? Math.abs(summary.net) : 0;
+  const flatRatePct =
+    manualRateOverride ?? (taxModel ? taxModel.bracketsFor(profile?.filingStatus ?? taxModel.defaultStatus)[0].rate * 100 : null);
+  const refundEstimateUsd = netLossUsd > 0 && flatRatePct !== null ? netLossUsd * (flatRatePct / 100) : null;
+  const refundEstimateLocal =
+    refundEstimateUsd !== null && taxModel && taxModel.currency !== "USD" ? refundEstimateUsd / taxModel.fxToUsd : null;
 
   return (
     <div>
@@ -411,16 +441,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
               </div>
               <div className="field">
                 <label>Account</label>
-                <select name="accountId" required defaultValue="">
-                  <option value="" disabled>
-                    Select…
-                  </option>
-                  {formOptions.accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+                <PayoutAccountSelect initialAccounts={formOptions.accounts} />
               </div>
               <div className="field">
                 <label>Gross Amount ($)</label>
@@ -550,6 +571,33 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
             </span>
           </div>
 
+          {netLossUsd > 0 && (
+            <div className="tax-refund-note">
+              {taxModel && flatRatePct !== null && refundEstimateUsd !== null ? (
+                <>
+                  <strong>If you lose more than you gain:</strong> {year}&apos;s logged result was a net loss of{" "}
+                  {fmtUsd2(netLossUsd)}. At {countryName}&apos;s flat {flatRatePct.toFixed(1)}% rate on realized losses, that could be
+                  worth roughly{" "}
+                  <strong>
+                    {refundEstimateLocal !== null
+                      ? `${fmtLocal(refundEstimateLocal, taxModel.currency)} (~${fmtUsd2(refundEstimateUsd)})`
+                      : fmtUsd2(refundEstimateUsd)}
+                  </strong>{" "}
+                  back — as a lower bill, a refund, or a carried-forward loss, depending on how {countryName} treats trading losses. This
+                  uses the flat base rate only (not the blended bracket rate above, since add-on brackets like trinnskatt generally don&apos;t
+                  apply to capital losses) and a ballpark exchange rate — confirm the exact figures, any loss limits or carryforward rules,
+                  and today&apos;s exchange rate with a licensed tax professional before filing.
+                </>
+              ) : (
+                <>
+                  <strong>If you lose more than you gain:</strong> {year}&apos;s logged result was a net loss of {fmtUsd2(netLossUsd)}.
+                  Set a country with bracket auto-calc, or enter an override rate, in Filing Region to estimate what that loss could be
+                  worth back on your taxes.
+                </>
+              )}
+            </div>
+          )}
+
           <div className="disclaimer">
             This is a summary ledger built from what you&apos;ve logged here — it is not tax advice and not an official
             IRS, Skatteetaten, or other tax-authority form. Use it as the source numbers when you (or your
@@ -637,6 +685,86 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
             </table>
           </div>
         )}
+      </div>
+
+      {/* -----------------------------------------------------------------
+          Receipts — a general holding pen for purchase receipts/invoices,
+          independent of any one logged tax entry. Scoped to the same
+          selected `year` as the rest of the page. Deliberately NOT part of
+          the printed Tax Year Summary (.print-area) — a receipt is a source
+          document, not a ledger line, and a browser can't reliably merge an
+          arbitrary uploaded PDF/image into that print output anyway. It
+          travels as its own companion download instead.
+          ----------------------------------------------------------------- */}
+      <div className="card card-pad no-print" style={{ marginTop: 24 }}>
+        <div className="flex items-start justify-between gap-4" style={{ marginBottom: 4 }}>
+          <div>
+            <h3>Receipts</h3>
+            <div className="sub" style={{ marginBottom: 10 }}>
+              Drop every receipt/invoice here as you get it — a photo or a PDF — and keep them all on hand for{" "}
+              {year}. They don&apos;t need to be tied to a specific logged income/expense line.
+            </div>
+          </div>
+          {receiptsForYear.length > 0 && (
+            <a href={`/api/receipts-pdf?year=${year}`} className="btn btn-ghost" style={{ whiteSpace: "nowrap" }}>
+              Download Receipts ({receiptsForYear.length})
+            </a>
+          )}
+        </div>
+
+        <ReceiptUpload />
+
+        {receiptsForYear.length > 0 && (
+          <div className="table-card" style={{ marginTop: 16 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Label</th>
+                  <th>File</th>
+                  <th>Type</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {receiptsForYear.map((r) => (
+                  <tr key={r.id}>
+                    <td className="date">{fmtDate(r.date)}</td>
+                    <td>{r.label ?? <span className="sub">—</span>}</td>
+                    <td className="mono" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.fileName}
+                    </td>
+                    <td className="mono">{r.contentType === "application/pdf" ? "PDF" : "Image"}</td>
+                    <td>
+                      <DeleteReceiptButton id={r.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* -----------------------------------------------------------------
+          Broker statement PnL high/low — for a live account that ran up
+          before giving it back (deposit → peak equity → drawdown), the
+          deductible loss isn't just "final minus deposit": realized gains
+          up to the peak and the realized loss given back after it are two
+          separate figures for tax purposes (same gross-gains/gross-losses
+          shape as the Norway example this page's refund estimate is built
+          on). This reads a broker statement's balance-over-time export,
+          finds the peak and the lowest point after it, and logs both as
+          tax entries — see BrokerStatementImport for the actual math.
+          ----------------------------------------------------------------- */}
+      <div className="card card-pad no-print" style={{ marginTop: 24 }}>
+        <h3>Broker Statement — PnL High/Low</h3>
+        <div className="sub" style={{ marginBottom: 10 }}>
+          Upload a balance/equity export from a live account (any CSV with a date column and a balance column) and
+          this finds the peak equity it reached and the lowest point afterward — the gains you ran it up to, and the
+          loss you gave back, logged as separate entries below instead of just the net change.
+        </div>
+        <BrokerStatementImport accounts={formOptions.accounts} />
       </div>
     </div>
   );

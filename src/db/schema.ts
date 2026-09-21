@@ -84,6 +84,26 @@ export const authSessions = pgTable("auth_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// "Forgot password" links — one-time, short-lived tokens, same opaque-random-
+// string-in-a-table shape as auth_sessions above (never a JWT) so a token
+// can actually be invalidated server-side rather than just expiring on its
+// own timer. Requesting a new reset link deletes any older ones for that
+// member first (see createPasswordResetToken in lib/auth.ts), so only the
+// most recently emailed link ever works, and consuming a token deletes it —
+// good for exactly one reset.
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    token: text("token").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_reset_tokens_user_idx").on(t.userId)],
+);
+
 // Access codes August hands out to paying members so signup isn't wide open.
 // maxUses null = unlimited; usesCount increments on every successful signup.
 export const inviteCodes = pgTable("invite_codes", {
@@ -364,6 +384,35 @@ export const taxEntries = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Receipts — a general holding pen for every purchase receipt/invoice a
+// member wants on hand for tax time (prop-firm eval receipts, software
+// subscriptions, whatever), independent of any one tax_entries row (a
+// receipt doesn't have to be linked to a specific logged income/expense
+// line to be worth keeping). Same storage philosophy as trades.chartImageUrl
+// — the file itself (image or PDF) is stored as a base64 data URI directly
+// in this text column rather than pushed out to a separate bucket/CDN, so
+// there's no file-storage service to provision. `date` defaults to the
+// upload date but is editable (the date on the actual receipt matters more
+// than when it was scanned in) and is what "Download Receipts" scopes by
+// tax year, same as everything else on the Budgeting & Tax page.
+export const receipts = pgTable(
+  "receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: timestamp("date", { withTimezone: true }).notNull().defaultNow(),
+    label: text("label"),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(), // "image/jpeg" | "image/png" | ... | "application/pdf"
+    fileDataUrl: text("file_data_url").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("receipts_user_date_idx").on(t.userId, t.date)],
+);
+
+// ---------------------------------------------------------------------------
 // Market session bias log — August's own daily macro read: for each of the
 // three trading sessions (Asia/London/New York), was it bullish or bearish,
 // and how many points did it push or dump. Per-member, like accounts/setups
@@ -475,8 +524,18 @@ export const usersRelations = relations(users, ({ many }) => ({
   pairs: many(pairs),
   sessionLogs: many(sessionLogs),
   authSessions: many(authSessions),
+  passwordResetTokens: many(passwordResetTokens),
   taxCategories: many(taxCategories),
   taxEntries: many(taxEntries),
+  receipts: many(receipts),
+}));
+
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, { fields: [passwordResetTokens.userId], references: [users.id] }),
+}));
+
+export const receiptsRelations = relations(receipts, ({ one }) => ({
+  user: one(users, { fields: [receipts.userId], references: [users.id] }),
 }));
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({

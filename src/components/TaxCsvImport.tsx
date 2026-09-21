@@ -121,8 +121,16 @@ export function TaxCsvImport({
   const [dateCol, setDateCol] = useState("");
   const [amountCol, setAmountCol] = useState("");
   const [descCol, setDescCol] = useState("");
+  // "auto" (default/recommended): each row's own amount sign decides income
+  // vs expense — positive rows file under the income category picked below,
+  // negative rows under the expense one. "manual": force every row into one
+  // kind regardless of sign (e.g. a cost list that's all positive numbers
+  // but every row is still an expense).
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [kind, setKind] = useState<"income" | "expense">("expense");
   const [categoryId, setCategoryId] = useState("");
+  const [incomeCategoryId, setIncomeCategoryId] = useState("");
+  const [expenseCategoryId, setExpenseCategoryId] = useState("");
   const [importing, setImporting] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
@@ -139,6 +147,9 @@ export function TaxCsvImport({
     setAmountCol("");
     setDescCol("");
     setCategoryId("");
+    setIncomeCategoryId("");
+    setExpenseCategoryId("");
+    setMode("auto");
   }
 
   async function handleFile(f: File | undefined) {
@@ -218,14 +229,34 @@ export function TaxCsvImport({
   const validRows = source === "pdf" ? pdfRows : csvValidRows;
   const showPreview = source === "pdf" || (source === "csv" && dateIdx >= 0 && amountIdx >= 0);
 
+  const positiveCount = useMemo(() => validRows.filter((r) => r.amount > 0).length, [validRows]);
+  const negativeCount = useMemo(() => validRows.filter((r) => r.amount < 0).length, [validRows]);
+
+  const canImport =
+    validRows.length > 0 &&
+    (mode === "manual" ? !!categoryId : (positiveCount === 0 || !!incomeCategoryId) && (negativeCount === 0 || !!expenseCategoryId));
+
   async function handleImport() {
-    if (!file || !categoryId || validRows.length === 0) return;
+    if (!file || validRows.length === 0 || !canImport) return;
     setImporting(true);
     setResult(null);
-    const res = await importTaxEntries(kind, categoryId, file.name, validRows);
+
+    const rowsToImport =
+      mode === "manual" ? validRows.map((r) => ({ ...r, amount: kind === "income" ? Math.abs(r.amount) : -Math.abs(r.amount) })) : validRows;
+    const categoryIds =
+      mode === "manual"
+        ? kind === "income"
+          ? { income: categoryId }
+          : { expense: categoryId }
+        : { income: incomeCategoryId || undefined, expense: expenseCategoryId || undefined };
+
+    const res = await importTaxEntries(file.name, rowsToImport, categoryIds);
     setImporting(false);
     if (res.ok) {
-      setResult({ ok: true, message: `Imported ${res.inserted} row${res.inserted === 1 ? "" : "s"} from ${file.name}.` });
+      const parts: string[] = [];
+      if (res.insertedIncome) parts.push(`${res.insertedIncome} income row${res.insertedIncome === 1 ? "" : "s"}`);
+      if (res.insertedExpense) parts.push(`${res.insertedExpense} expense row${res.insertedExpense === 1 ? "" : "s"}`);
+      setResult({ ok: true, message: `Imported ${parts.join(" and ")} from ${file.name}.` });
       resetFile();
       router.refresh();
     } else {
@@ -277,30 +308,86 @@ export function TaxCsvImport({
               : `${dataRows.length} row${dataRows.length === 1 ? "" : "s"} found`}
           </div>
 
+          <div className="field">
+            <label>How should this be categorized?</label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "auto" | "manual")}
+            >
+              <option value="auto">Auto-detect from the amount — positive rows → income, negative → expense (recommended)</option>
+              <option value="manual">Import every row as one kind, regardless of sign</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
-            <div className="field">
-              <label>Import as</label>
-              <select
-                value={kind}
-                onChange={(e) => {
-                  setKind(e.target.value as "income" | "expense");
-                  setCategoryId("");
-                }}
-              >
-                <option value="expense">Expense / write-off</option>
-                <option value="income">Income</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Category</label>
-              <TaxCategorySelect
-                kind={kind}
-                initialCategories={kind === "income" ? incomeCategories : expenseCategories}
-                value={categoryId}
-                onChange={setCategoryId}
-                name="importCategoryId"
-              />
-            </div>
+            {mode === "manual" ? (
+              <>
+                <div className="field">
+                  <label>Import as</label>
+                  <select
+                    value={kind}
+                    onChange={(e) => {
+                      setKind(e.target.value as "income" | "expense");
+                      setCategoryId("");
+                    }}
+                  >
+                    <option value="expense">Expense / write-off</option>
+                    <option value="income">Income</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Category</label>
+                  <TaxCategorySelect
+                    kind={kind}
+                    initialCategories={kind === "income" ? incomeCategories : expenseCategories}
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    name="importCategoryId"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {(positiveCount > 0 || validRows.length === 0) && (
+                  <div className="field">
+                    <label>
+                      Income category{" "}
+                      {positiveCount > 0 && (
+                        <span className="sub" style={{ fontWeight: 400 }}>
+                          ({positiveCount} row{positiveCount === 1 ? "" : "s"})
+                        </span>
+                      )}
+                    </label>
+                    <TaxCategorySelect
+                      kind="income"
+                      initialCategories={incomeCategories}
+                      value={incomeCategoryId}
+                      onChange={setIncomeCategoryId}
+                      name="importIncomeCategoryId"
+                    />
+                  </div>
+                )}
+                {(negativeCount > 0 || validRows.length === 0) && (
+                  <div className="field">
+                    <label>
+                      Expense category{" "}
+                      {negativeCount > 0 && (
+                        <span className="sub" style={{ fontWeight: 400 }}>
+                          ({negativeCount} row{negativeCount === 1 ? "" : "s"})
+                        </span>
+                      )}
+                    </label>
+                    <TaxCategorySelect
+                      kind="expense"
+                      initialCategories={expenseCategories}
+                      value={expenseCategoryId}
+                      onChange={setExpenseCategoryId}
+                      name="importExpenseCategoryId"
+                    />
+                  </div>
+                )}
+              </>
+            )}
             {source === "csv" && (
               <>
                 <div className="field">
@@ -356,6 +443,11 @@ export function TaxCsvImport({
                   </>
                 )}
               </div>
+              {mode === "auto" && positiveCount > 0 && negativeCount > 0 && (
+                <div className="text-[12px] mb-1.5" style={{ color: "var(--text-soft)" }}>
+                  {positiveCount} row{positiveCount === 1 ? "" : "s"} will be logged as income, {negativeCount} as expense.
+                </div>
+              )}
               {validRows.length > 0 && (
                 <div className="table-card">
                   <table>
@@ -363,6 +455,7 @@ export function TaxCsvImport({
                       <tr>
                         <th>Date</th>
                         <th>Amount</th>
+                        {mode === "auto" && <th>Type</th>}
                         <th>Description</th>
                       </tr>
                     </thead>
@@ -371,6 +464,11 @@ export function TaxCsvImport({
                         <tr key={i}>
                           <td className="date">{new Date(r.date).toLocaleDateString()}</td>
                           <td className="mono money">${Math.abs(r.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          {mode === "auto" && (
+                            <td className="mono" style={{ color: r.amount > 0 ? "var(--good)" : "var(--bad)" }}>
+                              {r.amount > 0 ? "Income" : "Expense"}
+                            </td>
+                          )}
                           <td className="mono">{r.description ?? "—"}</td>
                         </tr>
                       ))}
@@ -387,12 +485,7 @@ export function TaxCsvImport({
           )}
 
           <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={importing || !categoryId || validRows.length === 0}
-              onClick={handleImport}
-            >
+            <button type="button" className="btn btn-primary" disabled={importing || !canImport} onClick={handleImport}>
               {importing ? "Importing…" : `Import ${validRows.length || ""} row${validRows.length === 1 ? "" : "s"}`}
             </button>
             <button type="button" className="btn btn-ghost" onClick={resetFile}>

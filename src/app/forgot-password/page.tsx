@@ -2,14 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { BrandCrest } from "@/components/BrandCrest";
-import { LoginForm } from "@/components/LoginForm";
+import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
+export default async function ForgotPasswordPage() {
   const user = await getCurrentUser();
   if (user) redirect("/");
-  const { reset } = await searchParams;
 
   return (
     <div className="auth-shell">
@@ -20,20 +19,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             THE <b>BACKROOM</b>
           </span>
         </div>
-        <h3 style={{ marginBottom: 2 }}>Sign in</h3>
+        <h3 style={{ marginBottom: 2 }}>Reset your password</h3>
         <div className="sub" style={{ marginBottom: 16 }}>
-          Member Desk — your own journal, accounts, and analytics.
+          Enter the email on your account and we&apos;ll send you a link to set a new password.
         </div>
-        {reset === "1" && (
-          <div className="auth-success" style={{ marginBottom: 14 }}>
-            Password reset — sign in with your new password.
-          </div>
-        )}
-        <LoginForm />
+        <ForgotPasswordForm />
         <div className="auth-footer">
-          New here?{" "}
-          <Link href="/signup" className="link">
-            Create an account
+          <Link href="/login" className="link">
+            Back to sign in
           </Link>
         </div>
       </div>

@@ -173,6 +173,34 @@ export async function deleteTaxCategory(id: string): Promise<{ deleted: boolean;
   return { deleted: true, inUse: false };
 }
 
+// The bulk counterpart to deleteTaxCategory above — that one refuses when
+// the category has entries in it (protecting against an accidental empty
+// click), this one is the deliberate "scrap the whole thing" action: deletes
+// every tax entry filed under this category, then the category itself, in
+// one shot instead of clearing it out one DeleteTaxEntryButton click at a
+// time. Scoped to categories owned by this member, same ownership gate as
+// every other tax action. Any import batch those entries came from is left
+// alone (its rowCount can end up stale) — the same simplification a single
+// deleteTaxEntry call already accepts; "Account Payouts" isn't a real
+// taxCategories row (it's synthesized from the payouts table in
+// summarizeTaxYear), so it can never reach this action in the first place.
+export async function deleteTaxCategoryWithEntries(id: string): Promise<{ ok: boolean; deletedCount?: number }> {
+  const user = await requireUser();
+  if (!id) return { ok: false };
+
+  const category = await getTaxCategoryById(id, user.id);
+  if (!category) return { ok: false };
+
+  const deletedRows = await db
+    .delete(taxEntries)
+    .where(and(eq(taxEntries.categoryId, id), eq(taxEntries.userId, user.id)))
+    .returning({ id: taxEntries.id });
+  await db.delete(taxCategories).where(eq(taxCategories.id, id));
+
+  revalidatePath("/budgeting");
+  return { ok: true, deletedCount: deletedRows.length };
+}
+
 // Expected/validation errors modeled as a return value (Next 16's documented
 // pattern), same as TradeFormState in actions/trades.ts — a missing category
 // or a bad amount shows inline on the form instead of a crash screen.
@@ -274,40 +302,102 @@ export async function extractPdfTransactions(
   return { ok: true, rows };
 }
 
+// Splits the parsed rows by the sign of their amount — positive rows become
+// income, negative rows become expense — instead of forcing the whole file
+// into one kind the member has to pick up front. This is what makes
+// TaxCsvImport's "auto-detect" mode work: a payout/ledger export that nets
+// out fees and refunds per line (positive for money in, negative for money
+// out) gets filed correctly without the member re-running the import twice
+// or ending up with an all-expense file just because that was whichever
+// option the kind dropdown happened to be on. A file the member wants
+// forced into one kind regardless of sign (TaxCsvImport's "manual" mode —
+// e.g. a cost list that's all positive numbers but is still every row an
+// expense) pre-flips every row's sign client-side before calling this, so
+// it still lands entirely in one bucket here.
+// Up to two import batches get created (one per kind actually present) —
+// each independently undoable via the existing UndoImportBatchButton, same
+// as a single-kind import always was; a file that turns out to be all one
+// sign still produces just the one batch it always did.
 export async function importTaxEntries(
-  kind: "income" | "expense",
-  categoryId: string,
   filename: string,
   rows: { date: string; amount: number; description: string | null }[],
-): Promise<{ ok: boolean; error?: string; inserted?: number }> {
+  categoryIds: { income?: string; expense?: string },
+): Promise<{ ok: boolean; error?: string; insertedIncome?: number; insertedExpense?: number }> {
   const user = await requireUser();
 
-  if (kind !== "income" && kind !== "expense") return { ok: false, error: "Invalid import type." };
-  const category = await getTaxCategoryById(categoryId, user.id);
-  if (!category || category.kind !== kind) return { ok: false, error: "That category doesn't belong to your login." };
   if (rows.length === 0) return { ok: false, error: "Nothing to import — no valid rows were found in that file." };
   if (rows.length > 5000) return { ok: false, error: "That file has more than 5,000 rows — split it up and import in batches." };
 
-  const [batch] = await db
-    .insert(taxImportBatches)
-    .values({ userId: user.id, filename: filename.slice(0, 200), kind, rowCount: rows.length })
-    .returning({ id: taxImportBatches.id });
+  const incomeRows = rows.filter((r) => r.amount > 0);
+  const expenseRows = rows.filter((r) => r.amount < 0);
 
-  await db.insert(taxEntries).values(
-    rows.map((r) => ({
-      userId: user.id,
-      kind,
-      categoryId,
-      date: new Date(r.date),
-      amount: Math.abs(r.amount).toFixed(2),
-      description: r.description,
-      source: "import",
-      importBatchId: batch.id,
-    })),
-  );
+  if (incomeRows.length > 0 && !categoryIds.income) {
+    return { ok: false, error: "Pick a category for the income rows." };
+  }
+  if (expenseRows.length > 0 && !categoryIds.expense) {
+    return { ok: false, error: "Pick a category for the expense rows." };
+  }
+
+  let incomeCategory: Awaited<ReturnType<typeof getTaxCategoryById>> | null = null;
+  let expenseCategory: Awaited<ReturnType<typeof getTaxCategoryById>> | null = null;
+  if (categoryIds.income) {
+    incomeCategory = await getTaxCategoryById(categoryIds.income, user.id);
+    if (!incomeCategory || incomeCategory.kind !== "income") {
+      return { ok: false, error: "That income category doesn't belong to your login." };
+    }
+  }
+  if (categoryIds.expense) {
+    expenseCategory = await getTaxCategoryById(categoryIds.expense, user.id);
+    if (!expenseCategory || expenseCategory.kind !== "expense") {
+      return { ok: false, error: "That expense category doesn't belong to your login." };
+    }
+  }
+
+  let insertedIncome = 0;
+  let insertedExpense = 0;
+
+  if (incomeRows.length > 0 && incomeCategory) {
+    const [batch] = await db
+      .insert(taxImportBatches)
+      .values({ userId: user.id, filename: filename.slice(0, 200), kind: "income", rowCount: incomeRows.length })
+      .returning({ id: taxImportBatches.id });
+    await db.insert(taxEntries).values(
+      incomeRows.map((r) => ({
+        userId: user.id,
+        kind: "income" as const,
+        categoryId: incomeCategory.id,
+        date: new Date(r.date),
+        amount: Math.abs(r.amount).toFixed(2),
+        description: r.description,
+        source: "import",
+        importBatchId: batch.id,
+      })),
+    );
+    insertedIncome = incomeRows.length;
+  }
+
+  if (expenseRows.length > 0 && expenseCategory) {
+    const [batch] = await db
+      .insert(taxImportBatches)
+      .values({ userId: user.id, filename: filename.slice(0, 200), kind: "expense", rowCount: expenseRows.length })
+      .returning({ id: taxImportBatches.id });
+    await db.insert(taxEntries).values(
+      expenseRows.map((r) => ({
+        userId: user.id,
+        kind: "expense" as const,
+        categoryId: expenseCategory.id,
+        date: new Date(r.date),
+        amount: Math.abs(r.amount).toFixed(2),
+        description: r.description,
+        source: "import",
+        importBatchId: batch.id,
+      })),
+    );
+    insertedExpense = expenseRows.length;
+  }
 
   revalidatePath("/budgeting");
-  return { ok: true, inserted: rows.length };
+  return { ok: true, insertedIncome, insertedExpense };
 }
 
 // Deleting a batch cascades to its entries (tax_entries.import_batch_id,

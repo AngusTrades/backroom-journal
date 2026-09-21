@@ -16,6 +16,7 @@ import {
   copyDestinations,
   sessionLogs,
   newsEvents,
+  receipts,
 } from "./schema";
 import { and, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { startOfDay, startOfWeek, startOfMonth, startOfYear } from "date-fns";
@@ -645,6 +646,65 @@ export async function getTaxYears(userId: string): Promise<number[]> {
 
 export async function getTaxImportBatches(userId: string) {
   return db.select().from(taxImportBatches).where(eq(taxImportBatches.userId, userId)).orderBy(desc(taxImportBatches.createdAt));
+}
+
+// Receipts held for one tax year — scoped by the receipt's own `date`
+// (when the purchase happened, not when it was uploaded), same convention
+// as tax entries. Doesn't return `fileDataUrl` — that can be a multi-MB
+// base64 string per row and this is used to render the held-receipts list,
+// which only needs the filename/label/date/size to show a thumbnail-less
+// row; the full file is fetched separately (by id) only when actually
+// viewed, downloaded, or bundled into the combined PDF.
+export async function getReceiptsForYear(userId: string, year: number) {
+  const { start, end } = taxYearRange(year);
+  const rows = await db
+    .select({
+      id: receipts.id,
+      date: receipts.date,
+      label: receipts.label,
+      fileName: receipts.fileName,
+      contentType: receipts.contentType,
+      createdAt: receipts.createdAt,
+    })
+    .from(receipts)
+    .where(and(eq(receipts.userId, userId), gte(receipts.date, start), lt(receipts.date, end)))
+    .orderBy(desc(receipts.date));
+  return rows;
+}
+
+// The full-row counterpart to getReceiptsForYear, fileDataUrl included —
+// used only by the "Download Receipts" route handler to build the combined
+// PDF, never by a page render (see the comment above getReceiptsForYear for
+// why that split exists). Ascending by date: a packet reads as a
+// chronological paper trail, oldest receipt first.
+export async function getReceiptsForYearWithFiles(userId: string, year: number) {
+  const { start, end } = taxYearRange(year);
+  return db
+    .select()
+    .from(receipts)
+    .where(and(eq(receipts.userId, userId), gte(receipts.date, start), lt(receipts.date, end)))
+    .orderBy(receipts.date);
+}
+
+export async function getReceiptById(id: string, userId: string) {
+  const [row] = await db
+    .select()
+    .from(receipts)
+    .where(and(eq(receipts.id, id), eq(receipts.userId, userId)))
+    .limit(1);
+  return row ?? null;
+}
+
+// Every calendar year that has at least one receipt, for the same
+// "always show the current year, plus every year with something in it"
+// year-pill pattern getTaxYears already uses.
+export async function getReceiptYears(userId: string): Promise<number[]> {
+  const rows = await db
+    .select({ y: sql<number>`extract(year from ${receipts.date})::int` })
+    .from(receipts)
+    .where(eq(receipts.userId, userId));
+  const years = new Set<number>([new Date().getFullYear(), ...rows.map((r) => r.y)]);
+  return Array.from(years).sort((a, b) => b - a);
 }
 
 export type TaxSummaryLine = {
