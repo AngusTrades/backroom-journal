@@ -471,6 +471,9 @@ th.num {
 .kpi-row-6 {
   grid-template-columns: repeat(6, 1fr);
 }
+.kpi-row-7 {
+  grid-template-columns: repeat(7, 1fr);
+}
 .card-pad {
   padding: 20px 24px;
 }
@@ -1832,6 +1835,7 @@ html[data-privacy="on"] .money::after {
      so a 3/4/5/6-tile row wraps to however many actually fit per line
      (usually 2) instead of squeezing every tile down to a sliver. */
   .kpi-row,
+  .kpi-row-7,
   .kpi-row-6,
   .kpi-row-5,
   .kpi-row-3 {

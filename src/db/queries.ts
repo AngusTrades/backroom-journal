@@ -393,6 +393,7 @@ export async function getAnalytics(period: AnalyticsPeriod = "lifetime", userId:
       winRate: 0,
       avgRr: 0,
       profitFactor: 0,
+      payoutsTotal: 0,
       equityCurve: [] as { date: Date; cumulative: number }[],
       bySetup: [] as Breakdown[],
       byEntryModel: [] as Breakdown[],
@@ -432,6 +433,16 @@ export async function getAnalytics(period: AnalyticsPeriod = "lifetime", userId:
   const bySession = await breakdownByJoin(sessions, trades.sessionId, sessions.id, sessions.name, cond);
   const byPair = await breakdownByJoin(pairs, trades.pairId, pairs.id, pairs.symbol, cond);
 
+  // Payouts landed in this same period — gross amount, same convention as
+  // the Budgeting and PnL Calendar pages' payout totals. Own date filter
+  // (payouts.date, not trades.date) since a payout isn't a trade row; "how
+  // much have I actually been paid out so far this month" is what the
+  // Monthly tab answers here.
+  const payoutScope = inArray(payouts.accountId, accountIds);
+  const payoutCond: SQL = (from ? and(payoutScope, gte(payouts.date, from)) : payoutScope) ?? payoutScope;
+  const payoutRows = await db.select({ grossAmount: payouts.grossAmount }).from(payouts).where(payoutCond);
+  const payoutsTotal = payoutRows.reduce((s, p) => s + Number(p.grossAmount), 0);
+
   return {
     period,
     totalTrades,
@@ -440,6 +451,7 @@ export async function getAnalytics(period: AnalyticsPeriod = "lifetime", userId:
     winRate,
     avgRr,
     profitFactor,
+    payoutsTotal,
     equityCurve,
     bySetup,
     byEntryModel,

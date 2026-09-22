@@ -68,7 +68,15 @@ export default async function AnalyticsPage({
         }
       />
 
-      <div className="kpi-row kpi-row-6">
+      <div className="kpi-row kpi-row-7">
+        <div className="kpi">
+          <div className="k">
+            {period === "lifetime" ? "Payouts to Date" : `Payouts (${PERIOD_LABEL[period]})`}
+          </div>
+          <div className="v good money">
+            {a.payoutsTotal > 0 ? `$${a.payoutsTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+          </div>
+        </div>
         <div className="kpi">
           <div className="k">Win Rate</div>
           <div className={`v ${a.winRate >= 50 ? "good" : "bad"}`}>{a.winRate.toFixed(1)}%</div>
