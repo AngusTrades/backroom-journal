@@ -275,7 +275,7 @@ export function PnlCalendarGrid({
                 cells.push(
                   <div key={`week-${idx}`} className={`cal-week-summary ${week.isCurrent ? "current" : ""}`}>
                     <div className="cal-week-label">{week.label}</div>
-                    <div className={`cal-week-total ${weekOutcome}`}>
+                    <div className={`cal-week-total ${weekOutcome}${week.hasPnlData ? " money" : ""}`}>
                       {week.hasPnlData ? (
                         <>
                           {week.pnlUsd >= 0 ? "+" : "−"}

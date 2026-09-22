@@ -113,8 +113,10 @@ function TaxEntryCategorySection({ group, kind }: { group: TaxEntryCategoryGroup
           </span>
         </span>
         <span className="amt" style={{ color }}>
-          {sign}
-          {fmtUsd2(group.total)}
+          <span className="money">
+            {sign}
+            {fmtUsd2(group.total)}
+          </span>
           <DeleteTaxCategoryButton categoryId={group.items[0].category.id} categoryName={group.categoryName} count={group.items.length} />
         </span>
       </summary>
@@ -124,8 +126,10 @@ function TaxEntryCategorySection({ group, kind }: { group: TaxEntryCategoryGroup
             {fmtDate(e.date)} {e.description ? `— ${e.description}` : ""}
           </span>
           <span className="amt" style={{ color }}>
-            {sign}
-            {fmtUsd2(Number(e.amount))}
+            <span className="money">
+              {sign}
+              {fmtUsd2(Number(e.amount))}
+            </span>
             <DeleteTaxEntryButton id={e.id} />
           </span>
         </div>
@@ -509,7 +513,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           <div style={{ marginBottom: 18 }}>
             <div className="tax-category-head" style={{ fontSize: 13.5, borderBottom: "1px solid var(--border-soft)", paddingBottom: 8 }}>
               <span>Income</span>
-              <span className="amt" style={{ color: "var(--good)" }}>
+              <span className="amt money" style={{ color: "var(--good)" }}>
                 {fmtUsd2(summary.totalIncome)}
               </span>
             </div>
@@ -527,14 +531,14 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                         {cat.lines.length} {cat.lines.length === 1 ? "entry" : "entries"}
                       </span>
                     </span>
-                    <span className="amt">{fmtUsd2(cat.total)}</span>
+                    <span className="amt money">{fmtUsd2(cat.total)}</span>
                   </summary>
                   {cat.lines.map((line) => (
                     <div key={line.id} className="tax-line-row">
                       <span className="desc">
                         {fmtDate(line.date)} {line.description ? `— ${line.description}` : ""}
                       </span>
-                      <span className="amt">{fmtUsd2(line.amount)}</span>
+                      <span className="amt money">{fmtUsd2(line.amount)}</span>
                     </div>
                   ))}
                 </details>
@@ -545,7 +549,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           <div style={{ marginBottom: 8 }}>
             <div className="tax-category-head" style={{ fontSize: 13.5, borderBottom: "1px solid var(--border-soft)", paddingBottom: 8 }}>
               <span>Expenses / Write-offs</span>
-              <span className="amt" style={{ color: "var(--bad)" }}>
+              <span className="amt money" style={{ color: "var(--bad)" }}>
                 {fmtUsd2(summary.totalExpense)}
               </span>
             </div>
@@ -563,14 +567,14 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                         {cat.lines.length} {cat.lines.length === 1 ? "entry" : "entries"}
                       </span>
                     </span>
-                    <span className="amt">{fmtUsd2(cat.total)}</span>
+                    <span className="amt money">{fmtUsd2(cat.total)}</span>
                   </summary>
                   {cat.lines.map((line) => (
                     <div key={line.id} className="tax-line-row">
                       <span className="desc">
                         {fmtDate(line.date)} {line.description ? `— ${line.description}` : ""}
                       </span>
-                      <span className="amt">{fmtUsd2(line.amount)}</span>
+                      <span className="amt money">{fmtUsd2(line.amount)}</span>
                     </div>
                   ))}
                 </details>
@@ -580,7 +584,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
 
           <div className="tax-net-row">
             <span>Net ({year})</span>
-            <span className="amt" style={{ color: summary.net >= 0 ? "var(--good)" : "var(--bad)" }}>
+            <span className="amt money" style={{ color: summary.net >= 0 ? "var(--good)" : "var(--bad)" }}>
               {summary.net >= 0 ? "" : "−"}
               {fmtUsd2(Math.abs(summary.net))}
             </span>
@@ -591,9 +595,9 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
               {taxModel && flatRatePct !== null && refundEstimateUsd !== null ? (
                 <>
                   <strong>If you lose more than you gain:</strong> {year}&apos;s logged result was a net loss of{" "}
-                  {fmtUsd2(netLossUsd)}. At {countryName}&apos;s flat {flatRatePct.toFixed(1)}% rate on realized losses, that could be
-                  worth roughly{" "}
-                  <strong>
+                  <span className="money">{fmtUsd2(netLossUsd)}</span>. At {countryName}&apos;s flat {flatRatePct.toFixed(1)}% rate on
+                  realized losses, that could be worth roughly{" "}
+                  <strong className="money">
                     {refundEstimateLocal !== null
                       ? `${fmtLocal(refundEstimateLocal, taxModel.currency)} (~${fmtUsd2(refundEstimateUsd)})`
                       : fmtUsd2(refundEstimateUsd)}
@@ -605,8 +609,9 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                 </>
               ) : (
                 <>
-                  <strong>If you lose more than you gain:</strong> {year}&apos;s logged result was a net loss of {fmtUsd2(netLossUsd)}.
-                  Set a country with bracket auto-calc, or enter an override rate, in Filing Region to estimate what that loss could be
+                  <strong>If you lose more than you gain:</strong> {year}&apos;s logged result was a net loss of{" "}
+                  <span className="money">{fmtUsd2(netLossUsd)}</span>. Set a country with bracket auto-calc, or enter an override rate,
+                  in Filing Region to estimate what that loss could be
                   worth back on your taxes.
                 </>
               )}
