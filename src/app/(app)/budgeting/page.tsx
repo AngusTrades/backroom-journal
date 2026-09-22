@@ -708,13 +708,17 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
       </div>
 
       {/* -----------------------------------------------------------------
-          Receipts — a general holding pen for purchase receipts/invoices,
-          independent of any one logged tax entry. Scoped to the same
-          selected `year` as the rest of the page. Deliberately NOT part of
-          the printed Tax Year Summary (.print-area) — a receipt is a source
-          document, not a ledger line, and a browser can't reliably merge an
-          arbitrary uploaded PDF/image into that print output anyway. It
-          travels as its own companion download instead.
+          Receipts — a general holding pen for purchase receipts/invoices.
+          Scoped to the same selected `year` as the rest of the page.
+          Deliberately NOT part of the printed Tax Year Summary
+          (.print-area) — a receipt is a source document, not a ledger
+          line, and a browser can't reliably merge an arbitrary uploaded
+          PDF/image into that print output anyway. It travels as its own
+          companion download instead. A receipt still doesn't HAVE to be
+          tied to a logged income/expense line (ReceiptUpload's amount field
+          is optional) — but when it is, the "Logged" column below shows it,
+          so it's visible at a glance which receipts already count toward
+          the expense totals and which are just filed for reference.
           ----------------------------------------------------------------- */}
       <div className="card card-pad no-print" style={{ marginTop: 24 }}>
         <div className="flex items-start justify-between gap-4" style={{ marginBottom: 4 }}>
@@ -722,7 +726,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
             <h3>Receipts</h3>
             <div className="sub" style={{ marginBottom: 10 }}>
               Drop every receipt/invoice here as you get it — a photo or a PDF — and keep them all on hand for{" "}
-              {year}. They don&apos;t need to be tied to a specific logged income/expense line.
+              {year}. Fill in the amount to also log it as an expense.
             </div>
           </div>
           {receiptsForYear.length > 0 && (
@@ -732,7 +736,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
           )}
         </div>
 
-        <ReceiptUpload />
+        <ReceiptUpload expenseCategories={categories.expense} />
 
         {receiptsForYear.length > 0 && (
           <div className="table-card" style={{ marginTop: 16 }}>
@@ -743,6 +747,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                   <th>Label</th>
                   <th>File</th>
                   <th>Type</th>
+                  <th>Logged</th>
                   <th></th>
                 </tr>
               </thead>
@@ -755,6 +760,9 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
                       {r.fileName}
                     </td>
                     <td className="mono">{r.contentType === "application/pdf" ? "PDF" : "Image"}</td>
+                    <td className={`mono${r.taxEntryId ? " money" : ""}`}>
+                      {r.taxEntryId ? `− $${Number(r.taxEntryAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : <span className="sub">—</span>}
+                    </td>
                     <td>
                       <DeleteReceiptButton id={r.id} />
                     </td>

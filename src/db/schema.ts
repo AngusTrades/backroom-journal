@@ -395,6 +395,18 @@ export const taxEntries = pgTable(
 // upload date but is editable (the date on the actual receipt matters more
 // than when it was scanned in) and is what "Download Receipts" scopes by
 // tax year, same as everything else on the Budgeting & Tax page.
+//
+// `taxEntryId` is optional — a receipt still doesn't HAVE to be linked to a
+// tax entry (see above), but ReceiptUpload can now create one alongside the
+// receipt when a member fills in the amount, so the two aren't silently
+// disconnected the way they used to be (a receipt on file with nothing in
+// the expense log to match it). `onDelete: "set null"` rather than
+// "cascade": deleting the tax entry line (e.g. from the Log an Expense
+// list) shouldn't take the source document with it — the receipt just loses
+// its badge and goes back to being a plain, unlinked receipt. The reverse
+// direction (deleting the receipt also removing the entry it created) is
+// handled in the deleteReceipt action instead, where there's a user to
+// scope the tax entry's ownership check to.
 export const receipts = pgTable(
   "receipts",
   {
@@ -407,6 +419,7 @@ export const receipts = pgTable(
     fileName: text("file_name").notNull(),
     contentType: text("content_type").notNull(), // "image/jpeg" | "image/png" | ... | "application/pdf"
     fileDataUrl: text("file_data_url").notNull(),
+    taxEntryId: uuid("tax_entry_id").references(() => taxEntries.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("receipts_user_date_idx").on(t.userId, t.date)],
@@ -536,6 +549,7 @@ export const passwordResetTokensRelations = relations(passwordResetTokens, ({ on
 
 export const receiptsRelations = relations(receipts, ({ one }) => ({
   user: one(users, { fields: [receipts.userId], references: [users.id] }),
+  taxEntry: one(taxEntries, { fields: [receipts.taxEntryId], references: [taxEntries.id] }),
 }));
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({

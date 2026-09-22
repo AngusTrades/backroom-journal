@@ -685,8 +685,11 @@ export async function getReceiptsForYear(userId: string, year: number) {
       fileName: receipts.fileName,
       contentType: receipts.contentType,
       createdAt: receipts.createdAt,
+      taxEntryId: receipts.taxEntryId,
+      taxEntryAmount: taxEntries.amount,
     })
     .from(receipts)
+    .leftJoin(taxEntries, eq(receipts.taxEntryId, taxEntries.id))
     .where(and(eq(receipts.userId, userId), gte(receipts.date, start), lt(receipts.date, end)))
     .orderBy(desc(receipts.date));
   return rows;

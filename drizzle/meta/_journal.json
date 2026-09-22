@@ -92,6 +92,13 @@
       "when": 1790003399564,
       "tag": "0012_married_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790095186249,
+      "tag": "0013_cooing_stingray",
+      "breakpoints": true
     }
   ]
 }

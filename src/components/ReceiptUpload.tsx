@@ -3,6 +3,9 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadReceipt } from "@/app/actions/receipts";
+import { TaxCategorySelect } from "@/components/TaxCategorySelect";
+
+type CategoryOpt = { id: string; name: string };
 
 // Drop zone for the receipts holder on the Budgeting & Tax page — same
 // "no file storage service to set up" philosophy as ChartImageInput
@@ -48,7 +51,7 @@ function todayInputValue() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function ReceiptUpload() {
+export function ReceiptUpload({ expenseCategories }: { expenseCategories: CategoryOpt[] }) {
   const router = useRouter();
   const inputId = useId();
   const [dragOver, setDragOver] = useState(false);
@@ -61,6 +64,12 @@ export function ReceiptUpload() {
   const [pickedType, setPickedType] = useState("");
   const [label, setLabel] = useState("");
   const [date, setDate] = useState(todayInputValue());
+  // Optional — filling this in also logs a matching line in the expense
+  // log (see uploadReceipt), so a receipt doesn't have to be re-typed by
+  // hand into Log an Expense to actually count toward the totals. Left
+  // blank, the receipt is just filed away same as before.
+  const [amount, setAmount] = useState("");
+  const [categoryId, setCategoryId] = useState("");
 
   function reset() {
     setPickedDataUrl(null);
@@ -68,6 +77,8 @@ export function ReceiptUpload() {
     setPickedType("");
     setLabel("");
     setDate(todayInputValue());
+    setAmount("");
+    setCategoryId("");
   }
 
   async function handleFile(file: File | undefined) {
@@ -96,18 +107,30 @@ export function ReceiptUpload() {
     }
   }
 
+  const wantsExpenseLog = amount.trim() !== "";
+  const canSave = !pending && (!wantsExpenseLog || Boolean(categoryId));
+
   function handleSave() {
-    if (!pickedDataUrl) return;
+    if (!pickedDataUrl || !canSave) return;
+    setError(null);
     const fd = new FormData();
     fd.set("fileDataUrl", pickedDataUrl);
     fd.set("fileName", pickedName);
     fd.set("contentType", pickedType);
     fd.set("label", label);
     fd.set("date", date);
+    if (wantsExpenseLog) {
+      fd.set("amount", amount);
+      fd.set("categoryId", categoryId);
+    }
     startTransition(async () => {
-      await uploadReceipt(fd);
-      router.refresh();
-      reset();
+      try {
+        await uploadReceipt(fd);
+        router.refresh();
+        reset();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't save that receipt — try again.");
+      }
     });
   }
 
@@ -139,8 +162,34 @@ export function ReceiptUpload() {
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
+
+        <div style={{ paddingTop: 4, borderTop: "1px solid var(--border-soft)" }}>
+          <div className="sub" style={{ marginBottom: 6 }}>
+            Also log this as an expense (optional) — fill in the amount to add it straight to your expense totals.
+          </div>
+          <div className="flex gap-1.5">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Amount ($)"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="min-w-0"
+              style={{ flex: "0 0 120px" }}
+            />
+            {wantsExpenseLog && (
+              <div className="min-w-0 flex-1">
+                <TaxCategorySelect kind="expense" initialCategories={expenseCategories} value={categoryId} onChange={setCategoryId} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && <div className="form-error">{error}</div>}
+
         <div className="flex gap-1.5">
-          <button type="button" className="btn btn-primary" disabled={pending} onClick={handleSave}>
+          <button type="button" className="btn btn-primary" disabled={!canSave} onClick={handleSave}>
             {pending ? "Saving…" : "Save Receipt"}
           </button>
           <button type="button" className="btn btn-ghost" disabled={pending} onClick={reset}>
