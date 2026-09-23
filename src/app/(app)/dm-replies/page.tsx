@@ -108,6 +108,7 @@ export default async function DmRepliesPage({
           id: k.id,
           keyword: k.keyword,
           reply: k.reply,
+          matchMode: k.matchMode,
           onDm: k.onDm,
           onComment: k.onComment,
           publicCommentReply: k.publicCommentReply,

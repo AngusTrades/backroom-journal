@@ -2250,3 +2250,18 @@ a.badge.needs:hover {
 strong.good {
   color: var(--good);
 }
+.dm-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.dm-mode-label {
+  font-size: 12px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dm-mode .sub {
+  width: 100%;
+}

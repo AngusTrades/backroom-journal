@@ -1,0 +1,1 @@
+ALTER TABLE "dm_keywords" ADD COLUMN "match_mode" text DEFAULT 'exact' NOT NULL;

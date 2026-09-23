@@ -719,6 +719,9 @@ export const dmKeywords = pgTable(
     // Stored normalized (see normalizeKeyword): uppercase, no punctuation.
     keyword: text("keyword").notNull(),
     reply: text("reply").notNull(),
+    // "exact": the whole message must be the keyword. "contains": the
+    // keyword appears anywhere in the message as whole word(s).
+    matchMode: text("match_mode").notNull().default("exact"),
     onDm: boolean("on_dm").notNull().default(true),
     onComment: boolean("on_comment").notNull().default(true),
     // Optional short public reply under the comment ("Sent you a DM 👀").

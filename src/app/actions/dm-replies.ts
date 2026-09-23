@@ -38,6 +38,7 @@ export type KeywordInput = {
   id?: string;
   keyword: string;
   reply: string;
+  matchMode: "exact" | "contains";
   onDm: boolean;
   onComment: boolean;
   publicCommentReply: string;
@@ -55,7 +56,14 @@ function validate(input: KeywordInput) {
   if (publicCommentReply.length > 300) return { error: "Keep the public comment reply short." } as const;
   if (!input.onDm && !input.onComment) return { error: "Pick DMs, comments, or both." } as const;
   return {
-    values: { keyword, reply, publicCommentReply: publicCommentReply || null, onDm: Boolean(input.onDm), onComment: Boolean(input.onComment) },
+    values: {
+      keyword,
+      reply,
+      matchMode: input.matchMode === "contains" ? "contains" : "exact",
+      publicCommentReply: publicCommentReply || null,
+      onDm: Boolean(input.onDm),
+      onComment: Boolean(input.onComment),
+    },
   } as const;
 }
 

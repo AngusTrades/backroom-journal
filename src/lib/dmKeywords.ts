@@ -2,10 +2,14 @@
  * Keyword matching for Instagram auto-replies. Pure (no server imports) so
  * the DM Replies page can use it for its "test a message" box.
  *
- * A message matches only if the WHOLE message is the keyword, ignoring
- * capitals, punctuation, emoji and extra spaces:
- *   "challenge", "Challenge!", "  CHALLENGE 🔥" → CHALLENGE
- *   "is the challenge still open?"             → no match (a human answers)
+ * Capitals, punctuation, emoji and extra spaces are always ignored. Each
+ * keyword has a match mode:
+ *   exact    — the whole message must be the keyword:
+ *              "Challenge!" → CHALLENGE, "is the challenge open?" → no match
+ *   contains — the keyword appears anywhere, as whole word(s):
+ *              "is the challenge open?" → CHALLENGE, "challenges" → no match
+ * When several keywords fit, an exact match wins, then the longest keyword
+ * (so "THE BACKROOM" beats "BACKROOM").
  */
 export function normalizeKeyword(text: string): string {
   return text
@@ -16,10 +20,18 @@ export function normalizeKeyword(text: string): string {
     .replace(/\s+/g, " ");
 }
 
-export function matchKeyword<T extends { keyword: string }>(text: string, keywords: T[]): T | null {
+export type MatchMode = "exact" | "contains";
+
+export function matchKeyword<T extends { keyword: string; matchMode?: string }>(text: string, keywords: T[]): T | null {
   const norm = normalizeKeyword(text);
   if (!norm) return null;
-  return keywords.find((k) => k.keyword === norm) ?? null;
+  const exact = keywords.find((k) => k.keyword === norm);
+  if (exact) return exact;
+  const padded = ` ${norm} `;
+  const contained = keywords
+    .filter((k) => k.matchMode === "contains" && k.keyword && padded.includes(` ${k.keyword} `))
+    .sort((a, b) => b.keyword.length - a.keyword.length);
+  return contained[0] ?? null;
 }
 
 /** Instagram's limit for a DM text is 1000 bytes (not characters). */

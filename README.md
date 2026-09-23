@@ -451,10 +451,15 @@ nullable and adds the execution columns.
 
 ## DM Replies: Instagram keyword auto-replies (owner-only)
 
-When someone DMs, or comments on a post or Reel, a message that is
-**exactly** one of your keywords, the app replies from your account within
-seconds. Examples: "CHALLENGE", "challenge!", "Backrooms 🔥". Capitals,
-punctuation and emoji are ignored; longer messages are left for you to answer.
+When someone DMs, or comments on a post or Reel, one of your keywords, the
+app replies from your account within seconds. Each keyword triggers either
+when the **whole message** is the keyword ("challenge!", "Backrooms 🔥") or
+when it appears **anywhere in the message** ("is the challenge still
+open?"). Capitals, punctuation and emoji are always ignored, and only whole
+words match ("challenges" doesn't trigger CHALLENGE). If several keywords
+fit, an exact whole-message match wins, then the longest keyword. Migration
+`0018_keyword_match_mode` adds the setting; existing keywords stay
+whole-message.
 Comments get the reply privately in their DMs, plus an optional short public
 reply under the comment.
 

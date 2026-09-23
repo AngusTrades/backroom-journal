@@ -9,6 +9,7 @@ export type KeywordRow = {
   id: string;
   keyword: string;
   reply: string;
+  matchMode: string;
   onDm: boolean;
   onComment: boolean;
   publicCommentReply: string | null;
@@ -16,7 +17,14 @@ export type KeywordRow = {
   useCount: number;
 };
 
-const EMPTY: KeywordInput = { keyword: "", reply: "", onDm: true, onComment: true, publicCommentReply: "" };
+const EMPTY: KeywordInput = {
+  keyword: "",
+  reply: "",
+  matchMode: "exact",
+  onDm: true,
+  onComment: true,
+  publicCommentReply: "",
+};
 
 function KeywordForm({
   initial,
@@ -77,6 +85,34 @@ function KeywordForm({
           />
         </div>
       </div>
+      <div className="dm-mode" style={{ marginTop: 10 }}>
+        <span className="dm-mode-label">Trigger when</span>
+        <label className="dm-check">
+          <input
+            type="radio"
+            name={`mode-${v.id ?? "new"}`}
+            checked={v.matchMode === "exact"}
+            onChange={() => setV({ ...v, matchMode: "exact" })}
+          />{" "}
+          The whole message is the keyword
+        </label>
+        <label className="dm-check">
+          <input
+            type="radio"
+            name={`mode-${v.id ?? "new"}`}
+            checked={v.matchMode === "contains"}
+            onChange={() => setV({ ...v, matchMode: "contains" })}
+          />{" "}
+          The keyword is anywhere in the message
+        </label>
+        {v.matchMode === "contains" && (
+          <div className="sub">
+            Catches things like &quot;is the {normalizeKeyword(v.keyword).toLowerCase() || "keyword"} still open?&quot; too.
+            It also fires on messages that only mention it in passing, so pick a word people mostly use when they want
+            the info.
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-4" style={{ marginTop: 10 }}>
         <label className="dm-check">
           <input type="checkbox" checked={v.onDm} onChange={(e) => setV({ ...v, onDm: e.target.checked })} /> When someone DMs
@@ -129,8 +165,9 @@ export function DmKeywords({ keywords }: { keywords: KeywordRow[] }) {
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <h3>Add a keyword</h3>
         <div className="sub" style={{ marginBottom: 10 }}>
-          Triggers only when the whole message is the keyword. Capitals, punctuation and emoji are ignored, so
-          &quot;challenge!&quot; counts but &quot;is the challenge still open?&quot; doesn&apos;t, and you answer that one yourself.
+          Choose per keyword: trigger only when the whole message is the keyword (&quot;challenge!&quot;), or whenever it
+          appears in a message (&quot;is the challenge still open?&quot;). Capitals, punctuation and emoji are always
+          ignored, and it only matches whole words, so &quot;challenges&quot; won&apos;t trigger CHALLENGE.
         </div>
         <KeywordForm key={formKey} initial={EMPTY} submitLabel="Add keyword" onDone={() => setFormKey((k) => k + 1)} />
       </div>
@@ -150,6 +187,7 @@ export function DmKeywords({ keywords }: { keywords: KeywordRow[] }) {
                     id: k.id,
                     keyword: k.keyword,
                     reply: k.reply,
+                    matchMode: k.matchMode === "contains" ? "contains" : "exact",
                     onDm: k.onDm,
                     onComment: k.onComment,
                     publicCommentReply: k.publicCommentReply ?? "",
@@ -161,6 +199,7 @@ export function DmKeywords({ keywords }: { keywords: KeywordRow[] }) {
                   <div className="dm-row-head">
                     <span className="mono dm-kw">{k.keyword}</span>
                     <span className="sub">
+                      {k.matchMode === "contains" ? "anywhere in message" : "whole message"} ·{" "}
                       {[k.onDm && "DMs", k.onComment && "comments"].filter(Boolean).join(" + ")} · used {k.useCount}×
                       {!k.active && " · paused"}
                     </span>
