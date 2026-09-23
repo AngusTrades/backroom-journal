@@ -2,15 +2,46 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import { generateStoryCopy } from "@/app/actions/stories";
-import { compressPhoto, renderStoryFrame } from "@/lib/storyRender";
+import { generateStoryCopy, getLibraryFocus } from "@/app/actions/stories";
+import {
+  STORY_H,
+  STORY_W,
+  compressPhoto,
+  photoSize,
+  renderStoryFrame,
+  subjectFrameY,
+  type FrameLayout,
+  type TextPosition,
+} from "@/lib/storyRender";
 
 const MAX_PHOTOS = 10;
 
 // A slide's background: either a photo added just for this story (data URL)
 // or a photo from the library (served by /api/story-photo).
 type Slide = { src: string; thumb: string; libraryId?: string };
-type Frame = { photo: string; headline: string; body: string; libraryId?: string };
+type Focus = { x: number; y: number } | null;
+type Frame = {
+  photo: string;
+  headline: string;
+  body: string;
+  libraryId?: string;
+  focusX: number | null;
+  focusY: number | null;
+  /** What Claude detected, so "Re-center" can undo a manual drag. */
+  autoFocus: Focus;
+  textPos: TextPosition;
+};
+
+/** Put the text on the half of the frame the subject isn't in. */
+async function autoTextPos(photo: string, focus: Focus): Promise<TextPosition> {
+  if (!focus) return "bottom";
+  try {
+    const { w, h } = await photoSize(photo);
+    return subjectFrameY(w, h, focus.y) > 0.55 ? "top" : "bottom";
+  } catch {
+    return "bottom";
+  }
+}
 
 const libSlide = (id: string): Slide => ({
   src: `/api/story-photo/${id}`,
@@ -53,19 +84,59 @@ function downloadBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-function FramePreview({ frame, onCanvas }: { frame: Frame; onCanvas: (c: HTMLCanvasElement | null) => void }) {
+function FramePreview({
+  frame,
+  onCanvas,
+  onFocusChange,
+}: {
+  frame: Frame;
+  onCanvas: (c: HTMLCanvasElement | null) => void;
+  onFocusChange: (x: number, y: number) => void;
+}) {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  const layout = useRef<FrameLayout | null>(null);
+  const drag = useRef<{ px: number; py: number; fx: number; fy: number } | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!ref.current) return;
     let cancelled = false;
     renderStoryFrame(ref.current, frame)
-      .then(() => !cancelled && setFailed(false))
+      .then((l) => {
+        layout.current = l;
+        if (!cancelled) setFailed(false);
+      })
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
   }, [frame]);
+
+  // Dragging the preview slides the photo: moving right shows more of the
+  // left side, like dragging a photo in Instagram's own crop tool.
+  function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!layout.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { px: e.clientX, py: e.clientY, fx: frame.focusX ?? 0.5, fy: frame.focusY ?? 0.5 };
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    const d = drag.current;
+    const l = layout.current;
+    if (!d || !l) return;
+    const toFrame = STORY_W / e.currentTarget.clientWidth;
+    // Only the range that actually changes the crop, so dragging past an
+    // edge doesn't "store up" movement.
+    const clamp = (v: number, drawn: number, size: number) => {
+      const half = size / 2 / drawn;
+      return half >= 0.5 ? 0.5 : Math.min(1 - half, Math.max(half, v));
+    };
+    const x = clamp(d.fx - ((e.clientX - d.px) * toFrame) / l.drawnW, l.drawnW, STORY_W);
+    const y = clamp(d.fy - ((e.clientY - d.py) * toFrame) / l.drawnH, l.drawnH, STORY_H);
+    onFocusChange(Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000);
+  }
+  function onPointerUp() {
+    drag.current = null;
+  }
+
   return (
     <div className="story-preview">
       <canvas
@@ -73,6 +144,12 @@ function FramePreview({ frame, onCanvas }: { frame: Frame; onCanvas: (c: HTMLCan
           ref.current = c;
           onCanvas(c);
         }}
+        className="draggable"
+        title="Drag to reposition the photo"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       />
       {failed && <div className="form-error">Preview failed to render.</div>}
     </div>
@@ -149,7 +226,20 @@ export function StoryStudio({ libraryIds }: { libraryIds: string[] }) {
       return;
     }
     if (frames) {
-      setFrames((fs) => fs && fs.map((f, k) => (k === i ? { ...f, photo: libSlide(id).src, libraryId: id } : f)));
+      const src = libSlide(id).src;
+      void (async () => {
+        const focus = await getLibraryFocus(id).catch(() => null);
+        const textPos = await autoTextPos(src, focus);
+        setFrames(
+          (fs) =>
+            fs &&
+            fs.map((f, k) =>
+              k === i
+                ? { ...f, photo: src, libraryId: id, focusX: focus?.x ?? null, focusY: focus?.y ?? null, autoFocus: focus, textPos }
+                : f,
+            ),
+        );
+      })();
     } else {
       setPhotos((p) => p.map((x, k) => (k === i ? libSlide(id) : x)));
     }
@@ -162,8 +252,26 @@ export function StoryStudio({ libraryIds }: { libraryIds: string[] }) {
         brief,
         slides: photos.map((p) => (p.libraryId ? { libraryId: p.libraryId } : { image: p.src })),
       });
-      if ("error" in res) setError(res.error);
-      else setFrames(photos.map((p, i) => ({ photo: p.src, libraryId: p.libraryId, ...res.frames[i] })));
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      const built = await Promise.all(
+        photos.map(async (p, i): Promise<Frame> => {
+          const focus = res.frames[i].focus;
+          return {
+            photo: p.src,
+            libraryId: p.libraryId,
+            headline: res.frames[i].headline,
+            body: res.frames[i].body,
+            focusX: focus?.x ?? null,
+            focusY: focus?.y ?? null,
+            autoFocus: focus,
+            textPos: await autoTextPos(p.src, focus),
+          };
+        }),
+      );
+      setFrames(built);
     });
   }
 
@@ -229,7 +337,11 @@ export function StoryStudio({ libraryIds }: { libraryIds: string[] }) {
                   slides: frames.map((f) => (f.libraryId ? { libraryId: f.libraryId } : { image: f.photo })),
                 });
                 if ("error" in res) setError(res.error);
-                else setFrames((fs) => fs && fs.map((f, i) => ({ ...f, ...res.frames[i] })));
+                else
+                  setFrames(
+                    (fs) =>
+                      fs && fs.map((f, i) => ({ ...f, headline: res.frames[i].headline, body: res.frames[i].body })),
+                  );
               });
             }}
             disabled={pending}
@@ -271,9 +383,33 @@ export function StoryStudio({ libraryIds }: { libraryIds: string[] }) {
                   </button>
                 </div>
               </div>
-              <FramePreview frame={f} onCanvas={(c) => {
+              <FramePreview
+                frame={f}
+                onCanvas={(c) => {
                   canvases.current[i] = c;
-                }} />
+                }}
+                onFocusChange={(x, y) => update(i, { focusX: x, focusY: y })}
+              />
+              <div className="story-frame-tools">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => update(i, { textPos: f.textPos === "top" ? "bottom" : "top" })}
+                  title="Move the text"
+                >
+                  Text: {f.textPos === "top" ? "Top" : "Bottom"}
+                </button>
+                {(f.focusX !== (f.autoFocus?.x ?? null) || f.focusY !== (f.autoFocus?.y ?? null)) && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => update(i, { focusX: f.autoFocus?.x ?? null, focusY: f.autoFocus?.y ?? null })}
+                  >
+                    Re-center
+                  </button>
+                )}
+                <span className="sub">Drag photo to move</span>
+              </div>
               <div className="field" style={{ marginTop: 10 }}>
                 <label>Headline</label>
                 <input

@@ -61,7 +61,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   const wins = tradeRows.filter((t) => t.outcome === "win").length;
   const winRate = tradeCount ? (wins / tradeCount) * 100 : 0;
   const totalRr = tradeRows.reduce(
-    (s, t) => s + Number(t.rr) * (t.outcome === "loss" ? -1 : t.outcome === "be" ? 0 : 1),
+    (s, t) => s + (t.rr === null ? 0 : Number(t.rr) * (t.outcome === "loss" ? -1 : t.outcome === "be" ? 0 : 1)),
     0,
   );
   const totalPnlUsd = tradeRows.reduce((s, t) => s + (t.pnlUsd !== null ? Number(t.pnlUsd) : 0), 0);
@@ -160,9 +160,17 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
                 </td>
                 <td>{t.position === "long" ? "Long" : "Short"}</td>
                 <td>{t.session?.name ?? "—"}</td>
-                <td className={`num mono pnl ${t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
-                  {t.outcome === "loss" ? "−" : ""}
-                  {Number(t.rr).toFixed(2)}R
+                <td className={`num mono pnl ${t.rr === null ? "" : t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
+                  {t.rr === null ? (
+                    <Link href={`/edit-trade/${t.id}?returnTo=${encodeURIComponent(`/accounts/${account.id}`)}`} className="badge needs">
+                      Add stop
+                    </Link>
+                  ) : (
+                    <>
+                      {t.outcome === "loss" ? "−" : ""}
+                      {Number(t.rr).toFixed(2)}R
+                    </>
+                  )}
                 </td>
                 <td className={`num mono pnl money ${t.pnlUsd !== null ? (Number(t.pnlUsd) >= 0 ? "good" : "bad") : ""}`}>
                   {t.pnlUsd !== null

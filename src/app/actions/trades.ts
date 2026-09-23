@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getAccountById, getEntryModelById, getPairById, getTradeById } from "@/db/queries";
+import { computeR } from "@/lib/tradovate";
 
 // R:R is always stored as a non-negative magnitude — every Net R rollup
 // (account stats, analytics, calendar) applies the sign itself from
@@ -188,6 +189,33 @@ export async function updateTrade(_prevState: TradeFormState, formData: FormData
     }
   }
 
+  // Imported trades: R comes from the stop price (never from a typed R) so
+  // it always matches the real $ P&L. No stop yet → R stays unknown (null)
+  // and the trade keeps its "Add stop" flag.
+  let finalRr: string | null = rr;
+  let stopPrice: string | null = existing.stopPrice;
+  if (existing.entryPrice !== null && existing.contracts !== null) {
+    const stopRaw = String(formData.get("stopPrice") ?? "").trim().replace(/,/g, "");
+    if (!stopRaw || existing.pointValue === null) {
+      finalRr = null;
+      stopPrice = stopRaw && Number.isFinite(Number(stopRaw)) ? stopRaw : null;
+    } else {
+      const stop = Number(stopRaw);
+      if (!Number.isFinite(stop)) return { error: "The stop price isn't a number." };
+      if (!pnlUsdRaw) return { error: "Enter the P&L so R can be calculated from your stop." };
+      const r = computeR({
+        pnlUsd: Number(pnlUsdRaw),
+        entryPrice: Number(existing.entryPrice),
+        stopPrice: stop,
+        pointValue: Number(existing.pointValue),
+        contracts: Number(existing.contracts),
+      });
+      if (r === null) return { error: "The stop can't be the same as the entry price." };
+      finalRr = outcome === "be" ? "0" : String(r);
+      stopPrice = String(stop);
+    }
+  }
+
   await db
     .update(trades)
     .set({
@@ -197,7 +225,8 @@ export async function updateTrade(_prevState: TradeFormState, formData: FormData
       entryModelId,
       position,
       sessionId,
-      rr,
+      rr: finalRr,
+      stopPrice,
       outcome,
       pnlUsd: pnlUsdRaw ? pnlUsdRaw : null,
       preTrade,

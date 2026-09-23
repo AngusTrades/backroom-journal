@@ -70,10 +70,36 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
   return lines;
 }
 
-export async function renderStoryFrame(
-  canvas: HTMLCanvasElement,
-  { photo, headline, body }: { photo: string; headline: string; body: string },
-) {
+export type TextPosition = "top" | "bottom";
+
+export type FrameInput = {
+  photo: string;
+  headline: string;
+  body: string;
+  /** Crop center as 0..1 of the photo (the subject). Default: center. */
+  focusX?: number | null;
+  focusY?: number | null;
+  textPos?: TextPosition;
+};
+
+/** Size the photo is drawn at inside the 1080x1920 frame. The editor uses
+ * this to turn a drag in pixels into a change of focus point. */
+export type FrameLayout = { drawnW: number; drawnH: number };
+
+// Top ~250px of a story is covered by the progress bar + profile row, the
+// bottom ~340px by the reply bar.
+const SAFE_TOP = 330;
+
+/** Top-left offset that puts the focus point as close to the frame's center
+ * as the photo's edges allow (no empty bars). */
+export function cropOffset(drawn: number, frame: number, focus: number) {
+  const offset = frame / 2 - focus * drawn;
+  return Math.min(0, Math.max(frame - drawn, offset));
+}
+
+export async function renderStoryFrame(canvas: HTMLCanvasElement, frame: FrameInput): Promise<FrameLayout> {
+  const { photo, headline, body } = frame;
+  const textPos: TextPosition = frame.textPos ?? "bottom";
   await ensureFonts();
   const img = await loadImage(photo);
 
@@ -82,22 +108,19 @@ export async function renderStoryFrame(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported in this browser.");
 
-  // Photo, cover-fit and centered.
+  // Photo, cover-fit, cropped around the subject. A landscape photo fills
+  // the height and slides sideways; a tall one fills the width and slides
+  // vertically.
   ctx.fillStyle = "#060605";
   ctx.fillRect(0, 0, STORY_W, STORY_H);
   const scale = Math.max(STORY_W / img.width, STORY_H / img.height);
   const dw = img.width * scale;
   const dh = img.height * scale;
-  ctx.drawImage(img, (STORY_W - dw) / 2, (STORY_H - dh) / 2, dw, dh);
+  const fx = frame.focusX ?? 0.5;
+  const fy = frame.focusY ?? 0.5;
+  ctx.drawImage(img, cropOffset(dw, STORY_W, fx), cropOffset(dh, STORY_H, fy), dw, dh);
 
-  // Top shade for the wordmark, bottom shade for the text block.
-  const top = ctx.createLinearGradient(0, 0, 0, 480);
-  top.addColorStop(0, `rgba(${COLORS.shade}, 0.55)`);
-  top.addColorStop(1, `rgba(${COLORS.shade}, 0)`);
-  ctx.fillStyle = top;
-  ctx.fillRect(0, 0, STORY_W, 480);
-
-  // Measure the text first so the bottom shade can grow with it.
+  // Measure the text first so its shade can grow with it.
   ctx.font = HEADLINE_FONT;
   const hLines = headline.trim() ? wrap(ctx, headline.trim(), TEXT_W) : [];
   ctx.font = BODY_FONT;
@@ -107,17 +130,33 @@ export async function renderStoryFrame(
   const GAP = hLines.length && bLines.length ? 30 : 0;
   const BAR = hLines.length || bLines.length ? 44 : 0;
   const blockH = BAR + hLines.length * H_LH + GAP + bLines.length * B_LH;
-  const blockTop = STORY_H - SAFE_BOTTOM - blockH;
+  const blockTop = textPos === "top" ? SAFE_TOP + 60 : STORY_H - SAFE_BOTTOM - blockH;
 
-  const shadeTop = Math.max(0, blockTop - 420);
-  const bottom = ctx.createLinearGradient(0, shadeTop, 0, STORY_H);
-  bottom.addColorStop(0, `rgba(${COLORS.shade}, 0)`);
-  bottom.addColorStop(0.45, `rgba(${COLORS.shade}, 0.72)`);
-  bottom.addColorStop(1, `rgba(${COLORS.shade}, 0.92)`);
-  ctx.fillStyle = bottom;
-  ctx.fillRect(0, shadeTop, STORY_W, STORY_H - shadeTop);
+  if (textPos === "top") {
+    // Shade from the top down behind the wordmark + text.
+    const shadeBottom = Math.min(STORY_H, blockTop + blockH + 420);
+    const g = ctx.createLinearGradient(0, 0, 0, shadeBottom);
+    g.addColorStop(0, `rgba(${COLORS.shade}, 0.92)`);
+    g.addColorStop(0.55, `rgba(${COLORS.shade}, 0.72)`);
+    g.addColorStop(1, `rgba(${COLORS.shade}, 0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, STORY_W, shadeBottom);
+  } else {
+    const top = ctx.createLinearGradient(0, 0, 0, 480);
+    top.addColorStop(0, `rgba(${COLORS.shade}, 0.55)`);
+    top.addColorStop(1, `rgba(${COLORS.shade}, 0)`);
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, STORY_W, 480);
+    const shadeTop = Math.max(0, blockTop - 420);
+    const bottom = ctx.createLinearGradient(0, shadeTop, 0, STORY_H);
+    bottom.addColorStop(0, `rgba(${COLORS.shade}, 0)`);
+    bottom.addColorStop(0.45, `rgba(${COLORS.shade}, 0.72)`);
+    bottom.addColorStop(1, `rgba(${COLORS.shade}, 0.92)`);
+    ctx.fillStyle = bottom;
+    ctx.fillRect(0, shadeTop, STORY_W, STORY_H - shadeTop);
+  }
 
-  // Wordmark.
+  // Wordmark: always top-left, above the text when the text is at the top.
   ctx.font = MARK_FONT;
   ctx.fillStyle = COLORS.accent;
   ctx.textBaseline = "alphabetic";
@@ -148,6 +187,21 @@ export async function renderStoryFrame(
     ctx.fillText(line, SIDE, y - 14);
   }
   ctx.shadowBlur = 0;
+  return { drawnW: dw, drawnH: dh };
+}
+
+/** Where the subject ends up vertically in the finished frame (0..1). Used
+ * to put the text on the opposite half so it doesn't cover the subject. */
+export function subjectFrameY(imgW: number, imgH: number, focusY: number) {
+  const scale = Math.max(STORY_W / imgW, STORY_H / imgH);
+  const dh = imgH * scale;
+  return (cropOffset(dh, STORY_H, focusY) + focusY * dh) / STORY_H;
+}
+
+/** Natural size of a photo (cached with the renderer's image loads). */
+export async function photoSize(src: string) {
+  const img = await loadImage(src);
+  return { w: img.width, h: img.height };
 }
 
 export function exportFrameJpeg(canvas: HTMLCanvasElement) {

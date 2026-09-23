@@ -17,11 +17,12 @@ export default async function JournalPage() {
   const totalTrades = tradeRows.length;
   const wins = tradeRows.filter((t) => t.outcome === "win").length;
   const winRate = totalTrades ? (wins / totalTrades) * 100 : 0;
-  const avgRr =
-    totalTrades
-      ? tradeRows.reduce((sum, t) => sum + Number(t.rr), 0) / totalTrades
-      : 0;
-  const totalRr = tradeRows.reduce((sum, t) => sum + Number(t.rr) * (t.outcome === "loss" ? -1 : t.outcome === "be" ? 0 : 1), 0);
+  // Imported trades have no R until their stop is entered — R stats only
+  // count trades where R is known.
+  const rTrades = tradeRows.filter((t) => t.rr !== null);
+  const needsStop = totalTrades - rTrades.length;
+  const avgRr = rTrades.length ? rTrades.reduce((sum, t) => sum + Number(t.rr), 0) / rTrades.length : 0;
+  const totalRr = rTrades.reduce((sum, t) => sum + Number(t.rr) * (t.outcome === "loss" ? -1 : t.outcome === "be" ? 0 : 1), 0);
   const totalPnlUsd = tradeRows.reduce((sum, t) => sum + (t.pnlUsd !== null ? Number(t.pnlUsd) : 0), 0);
   const hasPnlData = tradeRows.some((t) => t.pnlUsd !== null);
 
@@ -31,11 +32,24 @@ export default async function JournalPage() {
         title="Journal"
         subtitle="Every trade, every confluence, in one place."
         action={
-          <Link href="/add-trade" className="btn btn-primary">
-            + Add Trade
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/import-trades" className="btn btn-ghost">
+              Import from Tradovate
+            </Link>
+            <Link href="/add-trade" className="btn btn-primary">
+              + Add Trade
+            </Link>
+          </div>
         }
       />
+
+      {needsStop > 0 && (
+        <div className="card card-pad needs-banner" style={{ marginBottom: 16 }}>
+          <span className="badge needs">Add stop</span> {needsStop} imported trade{needsStop === 1 ? "" : "s"}{" "}
+          {needsStop === 1 ? "needs" : "need"} a stop price before {needsStop === 1 ? "it counts" : "they count"} toward
+          your R stats. Open them with Edit below.
+        </div>
+      )}
 
       <div className="kpi-row">
         <div className="kpi">
@@ -109,9 +123,17 @@ export default async function JournalPage() {
                 </td>
                 <td>{t.position === "long" ? "Long" : "Short"}</td>
                 <td>{t.session?.name ?? "—"}</td>
-                <td className={`num mono pnl ${t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
-                  {t.outcome === "loss" ? "−" : ""}
-                  {Number(t.rr).toFixed(2)}R
+                <td className={`num mono pnl ${t.rr === null ? "" : t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
+                  {t.rr === null ? (
+                    <Link href={`/edit-trade/${t.id}`} className="badge needs">
+                      Add stop
+                    </Link>
+                  ) : (
+                    <>
+                      {t.outcome === "loss" ? "−" : ""}
+                      {Number(t.rr).toFixed(2)}R
+                    </>
+                  )}
                 </td>
                 <td className={`num mono pnl money ${t.pnlUsd !== null ? (Number(t.pnlUsd) >= 0 ? "good" : "bad") : ""}`}>
                   {t.pnlUsd !== null

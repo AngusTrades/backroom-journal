@@ -8,6 +8,7 @@ import {
   pgEnum,
   primaryKey,
   index,
+  uniqueIndex,
   unique,
   integer,
 } from "drizzle-orm/pg-core";
@@ -246,7 +247,10 @@ export const trades = pgTable(
     entryModelId: uuid("entry_model_id").references(() => entryModels.id, { onDelete: "set null" }),
     position: positionEnum("position").notNull(),
     sessionId: uuid("session_id").references(() => sessions.id),
-    rr: numeric("rr", { precision: 6, scale: 2 }).notNull(),
+    // Null means "not known yet": a trade imported from Tradovate has no R
+    // until its stop price is entered (see stopPrice below). R-based stats
+    // (Net R, avg R:R, profit factor, equity curve) skip null-R trades.
+    rr: numeric("rr", { precision: 6, scale: 2 }),
     outcome: outcomeEnum("outcome").notNull(),
     // Actual realized $ P&L for this trade, entered manually (signed — negative
     // for a loss). Optional: older trades and anyone who only tracks R won't
@@ -261,11 +265,32 @@ export const trades = pgTable(
     // a link to separate file storage — no bucket/CDN to set up, it just
     // works — so this column holds the image itself, not a pointer to it.
     chartImageUrl: text("chart_image_url"),
+    // --- Execution details. Filled in for trades imported from a broker
+    // export (Tradovate Performance CSV); null for manually logged trades.
+    // entry/exit are quantity-weighted averages when a position was scaled
+    // in or out. pointValue is $ per 1.00 price move per contract (NQ = 20).
+    // R is computed from these once stopPrice is entered:
+    //   rr = |pnlUsd| / (|entryPrice - stopPrice| * pointValue * contracts)
+    entryPrice: numeric("entry_price", { precision: 14, scale: 4 }),
+    exitPrice: numeric("exit_price", { precision: 14, scale: 4 }),
+    stopPrice: numeric("stop_price", { precision: 14, scale: 4 }),
+    contracts: numeric("contracts", { precision: 10, scale: 2 }),
+    pointValue: numeric("point_value", { precision: 12, scale: 4 }),
+    exitAt: timestamp("exit_at", { withTimezone: true }),
+    // "manual" or "tradovate". externalId is the broker's id for the trade
+    // (lowest fill id in the round trip) so re-importing an overlapping
+    // export skips trades that are already in the journal.
+    source: text("source").notNull().default("manual"),
+    externalId: text("external_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("trades_date_idx").on(t.date), index("trades_account_idx").on(t.accountId)],
+  (t) => [
+    index("trades_date_idx").on(t.date),
+    index("trades_account_idx").on(t.accountId),
+    uniqueIndex("trades_account_external_unique").on(t.accountId, t.externalId),
+  ],
 );
 
 // Multiple confluences ("Setups") per trade — many-to-many
@@ -649,6 +674,11 @@ export const storyLibraryPhotos = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     photoData: text("photo_data").notNull(),
     thumbData: text("thumb_data").notNull(),
+    // Where the subject (usually a face) sits in the photo, 0..1 from the
+    // top-left, found by Claude once at upload. Story frames crop to 9:16
+    // around it. Null = not detected yet (detected on first use) / center.
+    focusX: numeric("focus_x", { precision: 4, scale: 3 }),
+    focusY: numeric("focus_y", { precision: 4, scale: 3 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("story_library_photos_user_idx").on(t.userId)],

@@ -7,6 +7,7 @@ import { EntryModelPicker } from "@/components/EntryModelPicker";
 import { PairPicker } from "@/components/PairPicker";
 import { ChartImageInput } from "@/components/ChartImageInput";
 import { RrOutcomeFields } from "@/components/RrOutcomeFields";
+import { computeR } from "@/lib/tradovate";
 
 type Opt = { id: string; name: string };
 type PairOpt = { id: string; symbol: string };
@@ -19,13 +20,21 @@ type TradeForEdit = {
   entryModelId: string | null;
   position: "long" | "short";
   sessionId: string | null;
-  rr: string | number;
+  rr: string | number | null;
   outcome: "win" | "loss" | "be";
   pnlUsd: string | number | null;
   preTrade: string | null;
   management: string | null;
   review: string | null;
   chartImageUrl: string | null;
+  // Execution details — only set for trades imported from Tradovate.
+  entryPrice: string | null;
+  exitPrice: string | null;
+  stopPrice: string | null;
+  contracts: string | null;
+  pointValue: string | null;
+  exitAt: Date | null;
+  source: string;
 };
 
 const initialState: TradeFormState = {};
@@ -77,6 +86,27 @@ export function EditTradeForm({
   const [management, setManagement] = useState(trade.management ?? "");
   const [review, setReview] = useState(trade.review ?? "");
 
+  // Imported trades get R from the stop price instead of a typed-in R.
+  const imported = trade.entryPrice !== null && trade.contracts !== null;
+  const canComputeR = imported && trade.pointValue !== null;
+  const [stopPrice, setStopPrice] = useState(trade.stopPrice !== null ? String(Number(trade.stopPrice)) : "");
+  const [outcome, setOutcome] = useState<"win" | "loss" | "be">(trade.outcome);
+  const liveR =
+    canComputeR && stopPrice.trim() !== "" && pnlUsd.trim() !== "" && Number.isFinite(Number(stopPrice))
+      ? computeR({
+          pnlUsd: Number(pnlUsd),
+          entryPrice: Number(trade.entryPrice),
+          stopPrice: Number(stopPrice),
+          pointValue: Number(trade.pointValue),
+          contracts: Number(trade.contracts),
+        })
+      : null;
+  const riskUsd =
+    canComputeR && stopPrice.trim() !== "" && Number.isFinite(Number(stopPrice))
+      ? Math.abs(Number(trade.entryPrice) - Number(stopPrice)) * Number(trade.pointValue) * Number(trade.contracts)
+      : null;
+  const fmtNum = (v: string | null) => (v === null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }));
+
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1fr]">
       <input type="hidden" name="tradeId" value={trade.id} />
@@ -123,7 +153,33 @@ export function EditTradeForm({
               ))}
             </select>
           </div>
-          <RrOutcomeFields defaultRr={Math.abs(Number(trade.rr))} defaultOutcome={trade.outcome} />
+          {imported ? (
+            <>
+              <div className="field">
+                <label htmlFor="stopPrice">Stop price</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  id="stopPrice"
+                  name="stopPrice"
+                  placeholder={`e.g. ${fmtNum(trade.entryPrice)}`}
+                  value={stopPrice}
+                  onChange={(e) => setStopPrice(e.target.value)}
+                  disabled={!canComputeR}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="outcome">Outcome</label>
+                <select id="outcome" name="outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as "win" | "loss" | "be")}>
+                  <option value="win">Win</option>
+                  <option value="loss">Loss</option>
+                  <option value="be">Break-even</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <RrOutcomeFields defaultRr={Math.abs(Number(trade.rr ?? 0))} defaultOutcome={trade.outcome} />
+          )}
           <div className="field">
             <label htmlFor="pnlUsd">P&amp;L ($, optional)</label>
             <input
@@ -137,10 +193,51 @@ export function EditTradeForm({
             />
           </div>
         </div>
-        <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
-          R:R is stored as a positive number and Outcome is what makes it count against you in Net R — but you can
-          still just type e.g. -2 for a 2R loss and it&apos;ll flip Outcome to Loss and normalize the number for you.
-        </div>
+        {imported ? (
+          <div className="import-facts">
+            <div className="import-facts-head">
+              <span className="badge tradovate">Imported from Tradovate</span>
+              <span className="r-result">
+                {liveR !== null ? (
+                  <>
+                    = <strong className={outcome === "loss" ? "bad" : outcome === "win" ? "good" : ""}>
+                      {outcome === "loss" ? "−" : ""}
+                      {outcome === "be" ? "0.00" : liveR.toFixed(2)}R
+                    </strong>
+                    <span className="sub"> (${riskUsd?.toLocaleString(undefined, { maximumFractionDigits: 2 })} risked)</span>
+                  </>
+                ) : !canComputeR ? (
+                  <span className="sub">$ per point unknown for this contract, so R can&apos;t be calculated.</span>
+                ) : riskUsd === 0 ? (
+                  <span className="sub">Stop can&apos;t be the same as the entry price.</span>
+                ) : (
+                  <span className="sub">Enter your stop to calculate R</span>
+                )}
+              </span>
+            </div>
+            <div className="import-facts-grid mono">
+              <span>
+                {trade.position === "long" ? "Long" : "Short"} {Number(trade.contracts)}
+              </span>
+              <span>Entry {fmtNum(trade.entryPrice)}</span>
+              <span>Avg exit {fmtNum(trade.exitPrice)}</span>
+              {trade.exitAt && (
+                <span>
+                  Exit {new Date(trade.exitAt).toISOString().slice(11, 16)} UTC
+                </span>
+              )}
+            </div>
+            <div className="sub">
+              R = P&amp;L ÷ (entry-to-stop distance × ${fmtNum(trade.pointValue)}/pt × {Number(trade.contracts)} contract
+              {Number(trade.contracts) === 1 ? "" : "s"}). Use your original stop, even if you moved it later.
+            </div>
+          </div>
+        ) : (
+          <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
+            R:R is stored as a positive number and Outcome is what makes it count against you in Net R — but you can
+            still just type e.g. -2 for a 2R loss and it&apos;ll flip Outcome to Loss and normalize the number for you.
+          </div>
+        )}
         <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
           Enter the real dollar result if you know it — it flows straight into this account&apos;s current balance and
           the PnL calendar. Leave it blank to keep tracking this trade in R only.

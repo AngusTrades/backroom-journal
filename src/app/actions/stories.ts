@@ -5,7 +5,14 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { storyLibraryPhotos } from "@/db/schema";
 import { requireInstagramOwner } from "@/lib/auth";
-import { StoryWriterError, writeStoryCopy, type FrameCopy, type SlideInput } from "@/lib/storyWriter";
+import {
+  StoryWriterError,
+  detectFocusPoints,
+  writeStoryCopy,
+  type FocusPoint,
+  type FrameCopy,
+  type SlideInput,
+} from "@/lib/storyWriter";
 
 const MAX_SLIDES = 10;
 const MAX_BRIEF_CHARS = 2000;
@@ -15,6 +22,41 @@ const MAX_UPLOAD_BATCH = 6;
 const isImageDataUrl = (v: unknown): v is string =>
   typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(v);
 const isJpegDataUrl = (v: unknown): v is string => typeof v === "string" && v.startsWith("data:image/jpeg;base64,");
+
+/** Focus points for library photos, detecting (and saving) any that don't
+ * have one yet, e.g. photos uploaded before focus detection existed. */
+async function libraryFocusPoints(userId: string, ids: string[]): Promise<Map<string, FocusPoint | null>> {
+  const out = new Map<string, FocusPoint | null>();
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({
+      id: storyLibraryPhotos.id,
+      focusX: storyLibraryPhotos.focusX,
+      focusY: storyLibraryPhotos.focusY,
+      thumbData: storyLibraryPhotos.thumbData,
+    })
+    .from(storyLibraryPhotos)
+    .where(and(eq(storyLibraryPhotos.userId, userId), inArray(storyLibraryPhotos.id, [...new Set(ids)])));
+  const missing = rows.filter((r) => r.focusX === null || r.focusY === null);
+  for (const r of rows) {
+    if (r.focusX !== null && r.focusY !== null) out.set(r.id, { x: Number(r.focusX), y: Number(r.focusY) });
+  }
+  for (let i = 0; i < missing.length; i += 8) {
+    const chunk = missing.slice(i, i + 8);
+    const points = await detectFocusPoints(chunk.map((r) => r.thumbData));
+    for (const [k, r] of chunk.entries()) {
+      const pt = points[k];
+      out.set(r.id, pt);
+      if (pt) {
+        await db
+          .update(storyLibraryPhotos)
+          .set({ focusX: String(pt.x), focusY: String(pt.y) })
+          .where(eq(storyLibraryPhotos.id, r.id));
+      }
+    }
+  }
+  return out;
+}
 
 export type GenerateStoryResult = { error: string } | { frames: FrameCopy[] };
 
@@ -53,7 +95,16 @@ export async function generateStoryCopy(input: {
   }
 
   try {
-    return { frames: await writeStoryCopy(brief, writerSlides) };
+    const [frames, libFocus] = await Promise.all([
+      writeStoryCopy(brief, writerSlides),
+      libraryFocusPoints(user.id, libraryIds),
+    ]);
+    return {
+      frames: frames.map((f, i) => {
+        const s = slides[i];
+        return "libraryId" in s ? { ...f, focus: libFocus.get(String(s.libraryId)) ?? null } : f;
+      }),
+    };
   } catch (e) {
     if (e instanceof StoryWriterError) return { error: e.message };
     console.error("generateStoryCopy failed", e);
@@ -85,9 +136,21 @@ export async function uploadLibraryPhotos(photos: { photo: string; thumb: string
     return { error: `Your library is full (max ${MAX_LIBRARY_PHOTOS} photos). Delete some to add more.` };
   }
 
+  // Find the subject in each photo once, now, from the small thumbnails.
+  // If this fails (no API key, Claude down) the photo is still saved and
+  // gets detected the first time it's used in a story.
+  const focus = await detectFocusPoints(batch.map((p) => p.thumb));
   const rows = await db
     .insert(storyLibraryPhotos)
-    .values(batch.map((p) => ({ userId: user.id, photoData: p.photo, thumbData: p.thumb })))
+    .values(
+      batch.map((p, i) => ({
+        userId: user.id,
+        photoData: p.photo,
+        thumbData: p.thumb,
+        focusX: focus[i] ? String(focus[i]!.x) : null,
+        focusY: focus[i] ? String(focus[i]!.y) : null,
+      })),
+    )
     .returning({ id: storyLibraryPhotos.id });
   revalidatePath("/stories");
   revalidatePath("/stories/library");
@@ -101,4 +164,11 @@ export async function deleteLibraryPhoto(id: string) {
     .where(and(eq(storyLibraryPhotos.id, id), eq(storyLibraryPhotos.userId, user.id)));
   revalidatePath("/stories");
   revalidatePath("/stories/library");
+}
+
+/** Focus point for one library photo (used when swapping a slide's photo). */
+export async function getLibraryFocus(id: string): Promise<FocusPoint | null> {
+  const user = await requireInstagramOwner();
+  const points = await libraryFocusPoints(user.id, [String(id)]);
+  return points.get(String(id)) ?? null;
 }

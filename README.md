@@ -389,6 +389,17 @@ short text overlaid in Backroom styling.
    opens the share sheet, where "Save Images" puts them in your camera roll.
 4. Post them yourself in the Instagram app, adding any link stickers or polls.
 
+### Cropping to 9:16
+
+Every photo is cropped to 1080x1920 around its subject, not just the
+center. Claude finds the subject: for fresh uploads, in the same call that
+writes the text; for library photos, once at upload from the thumbnail
+(photos uploaded before this existed are detected the first time they're
+used). Text goes on whichever half the subject isn't in. On each frame you
+can **drag the preview** to reposition the photo, **Re-center** to undo, and
+switch **Text: Top/Bottom**. Migration `0016_story_focus` adds the focus
+columns.
+
 ### Photo library
 
 Upload a batch of photos of yourself once under **Story Maker → Manage**, or
@@ -411,6 +422,32 @@ browser until you download them, and the page warns you before you leave.
 | `INSTAGRAM_OWNER_EMAIL` | The login email of the ONE account that may use Story Maker. Everyone else, including other admins, gets a 404, and the sidebar link is hidden for them. If this isn't set, nobody has access. |
 | `ANTHROPIC_API_KEY` | From console.anthropic.com. Used to write the text. |
 | `ANTHROPIC_MODEL` | *Optional.* Defaults to `claude-sonnet-5`. |
+
+## Importing trades from Tradovate
+
+**Journal → Import from Tradovate** (`/import-trades`) takes a Tradovate
+**Performance** export (Account Reports → Performance → export CSV). Pick the
+account to import into and the time zone your Tradovate platform shows times
+in (default UTC).
+
+- **One journal trade per round trip.** Rows sharing a fill are combined,
+  so scaling in or out of one position is one trade, with quantity-weighted
+  average entry and exit prices.
+- **Filled in automatically:** date and time, direction, contracts,
+  entry/exit, $ P&L, and Win/Loss/B/E from the P&L. Pairs are matched to
+  yours (NQZ6 → NQ) or created.
+- **R comes from your stop.** Imported trades show an **Add stop** badge.
+  On Edit Trade, enter the stop price and R is calculated from the real
+  P&L: `R = |P&L| ÷ (|entry − stop| × $/point × contracts)`. $/point is read
+  from the export itself, falling back to a built-in table. Until a stop is
+  entered, the trade counts toward win rate and $ P&L but not toward R stats.
+- **Re-importing overlapping dates is safe.** Trades already in the account,
+  matched by Tradovate fill id, are skipped.
+- **$ P&L is before commissions**, as Tradovate reports it. Edit a trade's
+  P&L to include fees if you want them in; R recalculates.
+
+Migration `0015_trade_import` (run `npm run db:migrate` once) makes `rr`
+nullable and adds the execution columns.
 
 ## Project structure
 

@@ -2101,3 +2101,79 @@ html[data-privacy="on"] .money::after {
 .story-link:hover {
   text-decoration: underline;
 }
+
+/* ---------------------------------------------------------------------
+   Tradovate import: "Add stop" flag, imported-trade details on Edit Trade.
+   --------------------------------------------------------------------- */
+.badge.needs {
+  background: var(--accent-soft, rgba(232, 150, 60, 0.14));
+  color: var(--accent);
+  border: 1px solid var(--accent-line, rgba(232, 150, 60, 0.4));
+  white-space: nowrap;
+}
+a.badge.needs:hover {
+  filter: brightness(1.15);
+}
+.badge.tradovate {
+  background: var(--surface-2);
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+}
+.needs-banner {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.import-facts {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.import-facts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.import-facts-head .r-result strong {
+  font-family: var(--font-data);
+  font-size: 18px;
+}
+.import-facts-head .r-result strong.good {
+  color: var(--good);
+}
+.import-facts-head .r-result strong.bad {
+  color: var(--bad);
+}
+.import-facts-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+.import-done {
+  display: grid;
+  gap: 4px;
+}
+.story-preview canvas.draggable {
+  cursor: grab;
+  touch-action: none;
+}
+.story-preview canvas.draggable:active {
+  cursor: grabbing;
+}
+.story-frame-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.story-frame-tools .sub {
+  margin-left: auto;
+}

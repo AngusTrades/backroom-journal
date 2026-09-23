@@ -413,14 +413,17 @@ export async function getAnalytics(period: AnalyticsPeriod = "lifetime", userId:
   const wins = allTrades.filter((t) => t.outcome === "win").length;
   const losses = allTrades.filter((t) => t.outcome === "loss").length;
   const winRate = totalTrades ? (wins / totalTrades) * 100 : 0;
-  const avgRr = totalTrades ? allTrades.reduce((s, t) => s + Number(t.rr), 0) / totalTrades : 0;
+  // R-based stats only count trades whose R is known (imported trades have
+  // rr = null until their stop is entered). Win rate still counts every trade.
+  const rTrades = allTrades.filter((t) => t.rr !== null);
+  const avgRr = rTrades.length ? rTrades.reduce((s, t) => s + Number(t.rr), 0) / rTrades.length : 0;
 
-  const grossWin = allTrades.filter((t) => t.outcome === "win").reduce((s, t) => s + Number(t.rr), 0);
-  const grossLoss = allTrades.filter((t) => t.outcome === "loss").reduce((s, t) => s + Number(t.rr), 0);
+  const grossWin = rTrades.filter((t) => t.outcome === "win").reduce((s, t) => s + Number(t.rr), 0);
+  const grossLoss = rTrades.filter((t) => t.outcome === "loss").reduce((s, t) => s + Number(t.rr), 0);
   const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
 
   // Equity curve: cumulative R over time (loss subtracts, be is flat)
-  const sorted = [...allTrades].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sorted = [...rTrades].sort((a, b) => a.date.getTime() - b.date.getTime());
   let cumulative = 0;
   const equityCurve = sorted.map((t) => {
     const delta = t.outcome === "loss" ? -Number(t.rr) : t.outcome === "be" ? 0 : Number(t.rr);
@@ -563,7 +566,7 @@ export function groupPayoutsByDay(rows: { date: Date; grossAmount: string }[]): 
 }
 
 export function groupTradesByDay(
-  rows: { date: Date; pnlUsd: string | null; rr: string; outcome: "win" | "loss" | "be" }[],
+  rows: { date: Date; pnlUsd: string | null; rr: string | null; outcome: "win" | "loss" | "be" }[],
 ): Map<string, DailyPnl> {
   const byDay = new Map<string, DailyPnl>();
   for (const t of rows) {
@@ -574,7 +577,7 @@ export function groupTradesByDay(
       entry.pnlUsd += Number(t.pnlUsd);
       entry.hasPnlData = true;
     }
-    entry.totalRr += t.outcome === "loss" ? -Number(t.rr) : t.outcome === "be" ? 0 : Number(t.rr);
+    if (t.rr !== null) entry.totalRr += t.outcome === "loss" ? -Number(t.rr) : t.outcome === "be" ? 0 : Number(t.rr);
     byDay.set(key, entry);
   }
   return byDay;
