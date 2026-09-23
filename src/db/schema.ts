@@ -683,3 +683,74 @@ export const storyLibraryPhotos = pgTable(
   },
   (t) => [index("story_library_photos_user_idx").on(t.userId)],
 );
+
+// ---------------------------------------------------------------------------
+// Instagram DM auto-replies (owner-only). Meta calls
+// /api/instagram/webhook for every new DM / comment on the connected
+// account; a message that is exactly one of the keywords gets the keyword's
+// reply sent automatically from the account.
+//
+// instagram_connections holds the "Instagram API with Instagram Login"
+// access token. It's in the DB (not an env var) because long-lived tokens
+// expire after ~60 days and get refreshed automatically, and the refreshed
+// token has to be saved somewhere.
+// ---------------------------------------------------------------------------
+export const instagramConnections = pgTable("instagram_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  igUserId: text("ig_user_id").notNull(),
+  username: text("username").notNull(),
+  accessToken: text("access_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  tokenRefreshedAt: timestamp("token_refreshed_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dmKeywords = pgTable(
+  "dm_keywords",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Stored normalized (see normalizeKeyword): uppercase, no punctuation.
+    keyword: text("keyword").notNull(),
+    reply: text("reply").notNull(),
+    onDm: boolean("on_dm").notNull().default(true),
+    onComment: boolean("on_comment").notNull().default(true),
+    // Optional short public reply under the comment ("Sent you a DM 👀").
+    // The real reply always goes privately to their DMs.
+    publicCommentReply: text("public_comment_reply"),
+    active: boolean("active").notNull().default(true),
+    useCount: integer("use_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("dm_keywords_user_keyword_unique").on(t.userId, t.keyword)],
+);
+
+// Every DM / comment Meta sent us, and what happened. externalId (message
+// id or comment id) is unique, so Meta retrying a webhook can't trigger a
+// second reply.
+export const dmEvents = pgTable(
+  "dm_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // "dm" | "comment"
+    externalId: text("external_id").notNull().unique(),
+    fromId: text("from_id").notNull(),
+    fromUsername: text("from_username"),
+    text: text("text").notNull(),
+    keywordId: uuid("keyword_id").references(() => dmKeywords.id, { onDelete: "set null" }),
+    status: text("status").notNull(), // "replied" | "no_match" | "error"
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dm_events_user_created_idx").on(t.userId, t.createdAt)],
+);
+

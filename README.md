@@ -449,6 +449,37 @@ in (default UTC).
 Migration `0015_trade_import` (run `npm run db:migrate` once) makes `rr`
 nullable and adds the execution columns.
 
+## DM Replies: Instagram keyword auto-replies (owner-only)
+
+When someone DMs, or comments on a post or Reel, a message that is
+**exactly** one of your keywords, the app replies from your account within
+seconds. Examples: "CHALLENGE", "challenge!", "Backrooms 🔥". Capitals,
+punctuation and emoji are ignored; longer messages are left for you to answer.
+Comments get the reply privately in their DMs, plus an optional short public
+reply under the comment.
+
+Works with Instagram **Creator** or Business accounts (not personal), with no
+Facebook Page needed. Meta's rules: DM replies only to people who messaged
+you within 24h, and one private reply per comment within 7 days.
+
+**Vercel environment variables:**
+
+| Variable | What it is |
+| --- | --- |
+| `IG_APP_SECRET` | Your Meta app's App Secret (App settings → Basic). Used to verify that webhooks really come from Meta. Without it every webhook is rejected. |
+| `IG_WEBHOOK_VERIFY_TOKEN` | Any random string you make up. Paste the same value into Meta's webhook setup. |
+| `INSTAGRAM_OWNER_EMAIL` | Already set for Story Maker. Only this login sees DM Replies. |
+
+**Setup:**
+1. Connect by pasting your access token on the DM Replies page. That also
+   subscribes the account to message and comment webhooks.
+2. In Meta's dashboard, set the callback URL shown on the page
+   (`/api/instagram/webhook`), your verify token, and subscribe to
+   `messages` and `comments`.
+
+The access token refreshes itself automatically, and the activity log keeps
+30 days. Migration `0017_dm_replies` adds the tables.
+
 ## Project structure
 
 ```

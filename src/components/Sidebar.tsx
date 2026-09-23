@@ -120,6 +120,16 @@ const INSTAGRAM_ITEM = {
   ),
 };
 
+const DM_ITEM = {
+  href: "/dm-replies",
+  label: "DM Replies",
+  icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+    </svg>
+  ),
+};
+
 const EV_ITEM = {
   href: "/ev-calculator",
   label: "EV Calculator",
@@ -289,6 +299,7 @@ export function Sidebar({
           <NavLink {...EV_ITEM} onNavigate={close} />
           {isAdmin && <NavLink {...ADMIN_ITEM} onNavigate={close} />}
           {showInstagram && <NavLink {...INSTAGRAM_ITEM} onNavigate={close} />}
+          {showInstagram && <NavLink {...DM_ITEM} onNavigate={close} />}
         </nav>
 
         <div className="mt-auto pt-2.5" style={{ borderTop: "1px solid var(--border-soft)" }}>
