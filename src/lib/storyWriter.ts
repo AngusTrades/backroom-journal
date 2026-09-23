@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = `You write Instagram Story text overlays for August ("Angu
 Voice: direct, confident, casual, like a trader talking to his community. Short punchy lines. No corporate speak, no hype-bro clichés, no "unlock your potential".
 
 Hard rules:
-- Exactly one frame per photo, in the order given. Look at each photo and write text that fits it.
+- Exactly one frame per photo, in the order given. Where a photo is attached, look at it and write text that fits it. Photos marked as library backgrounds are random photos of August that you can't see: write text that works over any photo of him.
 - headline: max 7 words. body: max 22 words, can be an empty string if the headline says it all.
 - The frames read as a sequence: frame 1 hooks, the last frame carries any call to action.
 - No hashtags. At most one emoji per frame, usually none.
@@ -42,15 +42,23 @@ function dataUrlToImageBlock(dataUrl: string) {
   return { type: "image" as const, source: { type: "base64" as const, media_type: match[1], data: match[2] } };
 }
 
-export async function writeStoryCopy(brief: string, photos: string[]): Promise<FrameCopy[]> {
+/** One slide: either a photo attached for Claude to look at, or a random
+ * library background it doesn't need to see (keeps 10-slide stories cheap). */
+export type SlideInput = { image: string } | { library: true };
+
+export async function writeStoryCopy(brief: string, slides: SlideInput[]): Promise<FrameCopy[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new StoryWriterError("ANTHROPIC_API_KEY isn't set — add it in Vercel's environment variables.");
   }
 
   const content = [
-    ...photos.flatMap((p, i) => [{ type: "text" as const, text: `Photo ${i + 1}:` }, dataUrlToImageBlock(p)]),
-    { type: "text" as const, text: `Brief from August:\n${brief}\n\nWrite ${photos.length} frame(s).` },
+    ...slides.flatMap((sl, i) =>
+      "image" in sl
+        ? [{ type: "text" as const, text: `Photo ${i + 1}:` }, dataUrlToImageBlock(sl.image)]
+        : [{ type: "text" as const, text: `Photo ${i + 1}: (library background of August, not shown)` }],
+    ),
+    { type: "text" as const, text: `Brief from August:\n${brief}\n\nWrite ${slides.length} frame(s).` },
   ];
 
   let res: Response;
@@ -99,7 +107,7 @@ export async function writeStoryCopy(brief: string, photos: string[]): Promise<F
   }
 
   // Always hand back exactly one entry per photo, even if the model miscounted.
-  return photos.map((_, i) => ({
+  return slides.map((_, i) => ({
     headline: parsed.frames[i]?.headline.trim() ?? "",
     body: parsed.frames[i]?.body.trim() ?? "",
   }));

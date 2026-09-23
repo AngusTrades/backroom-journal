@@ -631,3 +631,25 @@ export const taxEntriesRelations = relations(taxEntries, ({ one }) => ({
   category: one(taxCategories, { fields: [taxEntries.categoryId], references: [taxCategories.id] }),
   importBatch: one(taxImportBatches, { fields: [taxEntries.importBatchId], references: [taxImportBatches.id] }),
 }));
+
+// ---------------------------------------------------------------------------
+// Story Maker photo library (owner-only). Photos uploaded once and reused as
+// story backgrounds: Story Maker can fill a story with random picks from
+// here. Both sizes are compressed JPEG data URLs, same approach as trade
+// chart screenshots: photoData (long edge ~1920px) is what gets rendered
+// into a story frame, thumbData (~360px) keeps the library grid light.
+// Served via /api/story-photo/[id], owner-gated.
+// ---------------------------------------------------------------------------
+export const storyLibraryPhotos = pgTable(
+  "story_library_photos",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    photoData: text("photo_data").notNull(),
+    thumbData: text("thumb_data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("story_library_photos_user_idx").on(t.userId)],
+);

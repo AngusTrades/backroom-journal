@@ -389,7 +389,21 @@ short text overlaid in Backroom styling.
    opens the share sheet, where "Save Images" puts them in your camera roll.
 4. Post them yourself in the Instagram app, adding any link stickers or polls.
 
-Nothing is stored, so there's no database migration. Frames live in the
+### Photo library
+
+Upload a batch of photos of yourself once under **Story Maker → Manage**, or
+at `/stories/library`, up to 300 photos. Then, in Story Maker, pick a number
+and click **Add random from library** to fill slides with random backgrounds.
+**↻** swaps any slide for a different random library photo, before or after
+generating. You can mix library photos with fresh uploads in the same story.
+
+Library photos aren't sent to Claude, only fresh uploads are, so a 10-slide
+library story is fast and cheap. The text is written to work over any photo.
+Library photos are stored compressed in Postgres (migration
+`0014_story_library`, so run `npm run db:migrate` once) and are only viewable
+by the Story Maker owner.
+
+The stories themselves still aren't saved. Frames live in the
 browser until you download them, and the page warns you before you leave.
 
 | Variable | What it is |

@@ -156,9 +156,8 @@ export function exportFrameJpeg(canvas: HTMLCanvasElement) {
 
 /** Resize an uploaded photo client-side before it's sent anywhere (long edge
  * 1920px is plenty for a 1080x1920 story and keeps the upload small). */
-export async function compressPhoto(file: File): Promise<string> {
+export async function compressPhoto(file: File, MAX = 1920, quality = 0.85): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const MAX = 1920;
   let { width, height } = bitmap;
   if (width > MAX || height > MAX) {
     const s = MAX / Math.max(width, height);
@@ -171,5 +170,5 @@ export async function compressPhoto(file: File): Promise<string> {
   const ctx = c.getContext("2d");
   if (!ctx) throw new Error("Couldn't process that image in this browser.");
   ctx.drawImage(bitmap, 0, 0, width, height);
-  return c.toDataURL("image/jpeg", 0.85);
+  return c.toDataURL("image/jpeg", quality);
 }

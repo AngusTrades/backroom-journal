@@ -1,12 +1,32 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { generateStoryCopy } from "@/app/actions/stories";
 import { compressPhoto, renderStoryFrame } from "@/lib/storyRender";
 
 const MAX_PHOTOS = 10;
 
-type Frame = { photo: string; headline: string; body: string };
+// A slide's background: either a photo added just for this story (data URL)
+// or a photo from the library (served by /api/story-photo).
+type Slide = { src: string; thumb: string; libraryId?: string };
+type Frame = { photo: string; headline: string; body: string; libraryId?: string };
+
+const libSlide = (id: string): Slide => ({
+  src: `/api/story-photo/${id}`,
+  thumb: `/api/story-photo/${id}?size=thumb`,
+  libraryId: id,
+});
+
+/** Up to n random library ids, skipping ones already in use. */
+function pickRandom(pool: string[], used: Set<string>, n: number): string[] {
+  const free = pool.filter((id) => !used.has(id));
+  for (let i = free.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [free[i], free[j]] = [free[j], free[i]];
+  }
+  return free.slice(0, n);
+}
 
 function fileName(i: number) {
   const d = new Date();
@@ -59,10 +79,11 @@ function FramePreview({ frame, onCanvas }: { frame: Frame; onCanvas: (c: HTMLCan
   );
 }
 
-export function StoryStudio() {
+export function StoryStudio({ libraryIds }: { libraryIds: string[] }) {
   const inputId = useId();
   const [brief, setBrief] = useState("");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Slide[]>([]);
+  const [fillCount, setFillCount] = useState(10);
   const [frames, setFrames] = useState<Frame[] | null>(null);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,8 +106,8 @@ export function StoryStudio() {
     try {
       const room = MAX_PHOTOS - photos.length;
       const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, room);
-      const compressed = await Promise.all(picked.map(compressPhoto));
-      setPhotos((p) => [...p, ...compressed]);
+      const compressed = await Promise.all(picked.map((f) => compressPhoto(f)));
+      setPhotos((p) => [...p, ...compressed.map((c) => ({ src: c, thumb: c }))]);
       if (files.length > room) setError(`Only ${MAX_PHOTOS} photos per story. The rest were skipped.`);
     } catch {
       setError("One of those images couldn't be processed. Try a JPEG or PNG.");
@@ -105,12 +126,44 @@ export function StoryStudio() {
     });
   }
 
+  const usedIds = (list: { libraryId?: string }[]) =>
+    new Set(list.flatMap((x) => (x.libraryId ? [x.libraryId] : [])));
+
+  function fillFromLibrary() {
+    setError(null);
+    const room = MAX_PHOTOS - photos.length;
+    const ids = pickRandom(libraryIds, usedIds(photos), Math.min(fillCount, room));
+    if (ids.length === 0) {
+      setError(room === 0 ? `A story can have up to ${MAX_PHOTOS} slides.` : "No unused library photos left.");
+      return;
+    }
+    setPhotos((p) => [...p, ...ids.map(libSlide)]);
+  }
+
+  /** Replace slide i's background with a different random library photo. */
+  function swapPhoto(i: number) {
+    const current = frames ?? photos;
+    const [id] = pickRandom(libraryIds, usedIds(current), 1);
+    if (!id) {
+      setError("No other library photos to swap in.");
+      return;
+    }
+    if (frames) {
+      setFrames((fs) => fs && fs.map((f, k) => (k === i ? { ...f, photo: libSlide(id).src, libraryId: id } : f)));
+    } else {
+      setPhotos((p) => p.map((x, k) => (k === i ? libSlide(id) : x)));
+    }
+  }
+
   function generate() {
     setError(null);
     startTransition(async () => {
-      const res = await generateStoryCopy({ brief, photos });
+      const res = await generateStoryCopy({
+        brief,
+        slides: photos.map((p) => (p.libraryId ? { libraryId: p.libraryId } : { image: p.src })),
+      });
       if ("error" in res) setError(res.error);
-      else setFrames(photos.map((photo, i) => ({ photo, ...res.frames[i] })));
+      else setFrames(photos.map((p, i) => ({ photo: p.src, libraryId: p.libraryId, ...res.frames[i] })));
     });
   }
 
@@ -163,13 +216,32 @@ export function StoryStudio() {
           <button type="button" className="btn btn-primary" onClick={saveAll} disabled={saving}>
             {saving ? "Exporting…" : `Save all ${frames.length} frame${frames.length === 1 ? "" : "s"}`}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={generate} disabled={pending}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              // Keep any swapped backgrounds when rewriting.
+              setPhotos(frames.map((f) => (f.libraryId ? libSlide(f.libraryId) : { src: f.photo, thumb: f.photo })));
+              startTransition(async () => {
+                setError(null);
+                const res = await generateStoryCopy({
+                  brief,
+                  slides: frames.map((f) => (f.libraryId ? { libraryId: f.libraryId } : { image: f.photo })),
+                });
+                if ("error" in res) setError(res.error);
+                else setFrames((fs) => fs && fs.map((f, i) => ({ ...f, ...res.frames[i] })));
+              });
+            }}
+            disabled={pending}
+          >
             {pending ? "Rewriting…" : "Rewrite text"}
           </button>
           <button
             type="button"
             className="btn btn-ghost"
             onClick={() => {
+              // Carry any swapped backgrounds back to the composer.
+              setPhotos(frames.map((f) => (f.libraryId ? libSlide(f.libraryId) : { src: f.photo, thumb: f.photo })));
               setFrames(null);
               setError(null);
             }}
@@ -188,9 +260,16 @@ export function StoryStudio() {
             <div key={i} className="card card-pad">
               <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                 <span className="mono sub">Frame {i + 1}</span>
-                <button type="button" className="btn btn-ghost" onClick={() => void downloadOne(i)}>
-                  Download
-                </button>
+                <div className="flex gap-2">
+                  {libraryIds.length > 0 && (
+                    <button type="button" className="btn btn-ghost" onClick={() => swapPhoto(i)} title="Random library photo">
+                      ↻ Photo
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-ghost" onClick={() => void downloadOne(i)}>
+                    Download
+                  </button>
+                </div>
               </div>
               <FramePreview frame={f} onCanvas={(c) => {
                   canvases.current[i] = c;
@@ -242,7 +321,7 @@ export function StoryStudio() {
           {photos.map((p, i) => (
             <div key={i} className="story-thumb">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p} alt={`Photo ${i + 1}`} />
+              <img src={p.thumb} alt={`Photo ${i + 1}`} />
               <span className="story-thumb-n mono">{i + 1}</span>
               <div className="story-thumb-actions">
                 <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move earlier">
@@ -251,6 +330,11 @@ export function StoryStudio() {
                 <button type="button" onClick={() => setPhotos((p) => p.filter((_, k) => k !== i))} aria-label="Remove">
                   ×
                 </button>
+                {libraryIds.length > 0 && (
+                  <button type="button" onClick={() => swapPhoto(i)} aria-label="Swap for a random library photo">
+                    ↻
+                  </button>
+                )}
                 <button type="button" onClick={() => move(i, 1)} disabled={i === photos.length - 1} aria-label="Move later">
                   →
                 </button>
@@ -274,6 +358,41 @@ export function StoryStudio() {
             e.target.value = "";
           }}
         />
+      </div>
+
+      <div className="story-library-row">
+        {libraryIds.length > 0 ? (
+          <>
+            <select value={fillCount} onChange={(e) => setFillCount(Number(e.target.value))} aria-label="How many">
+              {Array.from({ length: MAX_PHOTOS }, (_, k) => k + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={fillFromLibrary}
+              disabled={photos.length >= MAX_PHOTOS}
+            >
+              Add random from library
+            </button>
+            <span className="sub">
+              {libraryIds.length} photo{libraryIds.length === 1 ? "" : "s"} in your library ·{" "}
+              <Link href="/stories/library" className="story-link">
+                Manage
+              </Link>
+            </span>
+          </>
+        ) : (
+          <span className="sub">
+            Tip: upload a batch of photos of yourself once and Story Maker can fill stories with random backgrounds.{" "}
+            <Link href="/stories/library" className="story-link">
+              Set up your photo library →
+            </Link>
+          </span>
+        )}
       </div>
 
       {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}

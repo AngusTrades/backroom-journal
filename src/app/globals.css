@@ -2080,3 +2080,24 @@ html[data-privacy="on"] .money::after {
   align-items: center;
   gap: 12px;
 }
+.story-library-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.story-library-row select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-family: var(--font-data);
+}
+.story-link {
+  color: var(--accent);
+}
+.story-link:hover {
+  text-decoration: underline;
+}
