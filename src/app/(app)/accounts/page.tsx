@@ -168,7 +168,14 @@ export default async function AccountsPage() {
   const activeAccounts = accounts.filter((a) => a.status !== "failed");
   const archivedAccounts = accounts.filter((a) => a.status === "failed");
 
-  const totalValue = accounts.reduce((s, a) => s + a.currentBalance, 0);
+  // Total Current Balance is meant to answer "what do I actually have in
+  // play right now" — a blown account's balance isn't real, tradable money
+  // anymore, so it's excluded here even though it's still counted in
+  // accounts.length elsewhere. Net R stays over every account (including
+  // blown ones) since that's a historical performance figure, not a
+  // current-money one — a blown account's R record shouldn't disappear
+  // from your lifetime stats just because the account itself is gone.
+  const totalValue = activeAccounts.reduce((s, a) => s + a.currentBalance, 0);
   const netR = accounts.reduce((s, a) => s + a.totalRr, 0);
   const inEval = accounts.filter((a) => a.type === "prop_firm" && a.status === "active").length;
 
