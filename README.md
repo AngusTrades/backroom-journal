@@ -377,6 +377,27 @@ come through. The `dailyLossCapUsd` risk setting is captured in the schema
 and shown in the UI but **not yet enforced** by the engine — see the TODO
 in `copy-engine.ts` before relying on it.
 
+## Story Maker (owner-only)
+
+**Story Maker** turns a short brief and a few photos into finished Instagram
+story frames. Each frame is a 1080x1920 JPEG: your photo with a headline and
+short text overlaid in Backroom styling.
+
+1. Write a brief and add your photos in order. Claude writes one frame per photo.
+2. Tweak the text. The preview is exactly the image you'll download.
+3. Download frames one at a time, or use **Save all**. On a phone, Save all
+   opens the share sheet, where "Save Images" puts them in your camera roll.
+4. Post them yourself in the Instagram app, adding any link stickers or polls.
+
+Nothing is stored, so there's no database migration. Frames live in the
+browser until you download them, and the page warns you before you leave.
+
+| Variable | What it is |
+| --- | --- |
+| `INSTAGRAM_OWNER_EMAIL` | The login email of the ONE account that may use Story Maker. Everyone else, including other admins, gets a 404, and the sidebar link is hidden for them. If this isn't set, nobody has access. |
+| `ANTHROPIC_API_KEY` | From console.anthropic.com. Used to write the text. |
+| `ANTHROPIC_MODEL` | *Optional.* Defaults to `claude-sonnet-5`. |
+
 ## Project structure
 
 ```

@@ -14,7 +14,7 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { randomBytes } from "node:crypto";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { authSessions, passwordResetTokens, users } from "@/db/schema";
@@ -97,6 +97,24 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "admin") redirect("/");
+  return user;
+}
+
+/**
+ * The Story Maker is private to ONE specific login, not every admin: only
+ * the account whose email matches INSTAGRAM_OWNER_EMAIL (and is an admin)
+ * can see the page, the sidebar link, or call its action.
+ * Fails closed — if the env var isn't set, nobody has access.
+ */
+export function isInstagramOwner(user: SessionUser): boolean {
+  const owner = process.env.INSTAGRAM_OWNER_EMAIL?.trim().toLowerCase();
+  return Boolean(owner) && user.role === "admin" && user.email.trim().toLowerCase() === owner;
+}
+
+export async function requireInstagramOwner(): Promise<SessionUser> {
+  const user = await requireUser();
+  // 404 rather than a redirect, so the page doesn't even reveal it exists.
+  if (!isInstagramOwner(user)) notFound();
   return user;
 }
 

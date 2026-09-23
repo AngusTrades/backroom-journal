@@ -108,6 +108,18 @@ const ADMIN_ITEM = {
   ),
 };
 
+const INSTAGRAM_ITEM = {
+  href: "/stories",
+  label: "Story Maker",
+  icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.2" cy="6.8" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+};
+
 const EV_ITEM = {
   href: "/ev-calculator",
   label: "EV Calculator",
@@ -150,7 +162,15 @@ function NavLink({
   );
 }
 
-export function Sidebar({ userName, isAdmin }: { userName: string; isAdmin: boolean }) {
+export function Sidebar({
+  userName,
+  isAdmin,
+  showInstagram = false,
+}: {
+  userName: string;
+  isAdmin: boolean;
+  showInstagram?: boolean;
+}) {
   // Below the `md` breakpoint the sidebar becomes an off-canvas drawer
   // (fixed, slid out via translate-x) opened by a hamburger button in a
   // small top bar; at `md` and up it reverts to the original always-visible
@@ -268,6 +288,7 @@ export function Sidebar({ userName, isAdmin }: { userName: string; isAdmin: bool
           <div className="my-2.5 mx-1 h-px" style={{ background: "var(--border-soft)" }} />
           <NavLink {...EV_ITEM} onNavigate={close} />
           {isAdmin && <NavLink {...ADMIN_ITEM} onNavigate={close} />}
+          {showInstagram && <NavLink {...INSTAGRAM_ITEM} onNavigate={close} />}
         </nav>
 
         <div className="mt-auto pt-2.5" style={{ borderTop: "1px solid var(--border-soft)" }}>
