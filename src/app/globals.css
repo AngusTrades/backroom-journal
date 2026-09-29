@@ -2265,3 +2265,10 @@ strong.good {
 .dm-mode .sub {
   width: 100%;
 }
+.import-hint {
+  margin: 4px 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}

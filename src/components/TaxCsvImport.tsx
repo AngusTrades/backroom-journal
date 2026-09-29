@@ -136,6 +136,7 @@ export function TaxCsvImport({
   const [pickError, setPickError] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [costListDetected, setCostListDetected] = useState(false);
 
   function resetFile() {
     setFile(null);
@@ -150,6 +151,7 @@ export function TaxCsvImport({
     setIncomeCategoryId("");
     setExpenseCategoryId("");
     setMode("auto");
+    setCostListDetected(false);
   }
 
   async function handleFile(f: File | undefined) {
@@ -207,8 +209,23 @@ export function TaxCsvImport({
       return idx >= 0 ? rows[0][idx] : "";
     };
     setDateCol(guess(["date"]));
-    setAmountCol(guess(["amount", "total", "price", "cost"]));
+    const amountGuess = guess(["amount", "total", "price", "cost"]);
+    setAmountCol(amountGuess);
     setDescCol(guess(["desc", "memo", "note", "item", "name"]));
+
+    // A billing / charges export (prop firm "payment history", invoices,
+    // receipts…) lists what you PAID as positive numbers. Auto-detect would
+    // file those as income, so when the file's name or columns look like a
+    // cost list and every amount is positive, start in "all expenses" mode.
+    const ai = rows[0].indexOf(amountGuess);
+    const amounts = ai >= 0 ? rows.slice(1).map((r) => parseAmount(r[ai] ?? "")).filter((a): a is number => a !== null && a !== 0) : [];
+    const allPositive = amounts.length > 0 && amounts.every((a) => a > 0);
+    const costWords = /charge|payment|invoice|purchase|order|receipt|billing|bill|expense|fee|subscription|spend/i;
+    if (allPositive && (costWords.test(f.name) || rows[0].some((h) => costWords.test(h)))) {
+      setMode("manual");
+      setKind("expense");
+      setCostListDetected(true);
+    }
   }
 
   const dateIdx = headers.indexOf(dateCol);
@@ -318,6 +335,31 @@ export function TaxCsvImport({
               <option value="manual">Import every row as one kind, regardless of sign</option>
             </select>
           </div>
+
+          {costListDetected && mode === "manual" && kind === "expense" && (
+            <div className="sub import-hint">
+              This looks like a list of charges or purchases (every amount is positive), so it&apos;s set to import
+              every row as an <strong>expense</strong>. Change it above if that&apos;s wrong.
+            </div>
+          )}
+          {mode === "auto" && negativeCount === 0 && positiveCount > 1 && (
+            <div className="form-error import-hint">
+              Every amount in this file is positive, so auto-detect will import all {positiveCount} rows as{" "}
+              <strong>income</strong>. If this is a list of costs (charges, purchases, invoices), import them as
+              expenses instead.{" "}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setMode("manual");
+                  setKind("expense");
+                  setCategoryId("");
+                }}
+              >
+                Import all as expenses
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
             {mode === "manual" ? (
