@@ -112,6 +112,66 @@ export const FIRMS: Firm[] = [
     promoCode: "BALAGOON",
     discountPct: 40,
   },
+  {
+    firm: "TopOneFutures",
+    program: "Elite Daily Evaluation",
+    confidence: "medium",
+    accounts: [
+      { size: 25000, target: 1500, drawdown: 1000, dailyLoss: 500, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 98, activationFee: 0, payoutThreshold: 1250, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 50000, target: 3000, drawdown: 2000, dailyLoss: 1000, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 144, activationFee: 0, payoutThreshold: 1500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 100000, target: 6000, drawdown: 3000, dailyLoss: 1500, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 216, activationFee: 0, payoutThreshold: 2500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 150000, target: 9000, drawdown: 4500, dailyLoss: 1850, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 302, activationFee: 0, payoutThreshold: 3500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+    ],
+    note: "Modeled on the Elite Daily program (EOD trailing, locks near breakeven). Whether its daily loss limit is a hard fail or a soft pause wasn't clearly published, so it's modeled as non-fatal here — confirm before funding. The no-daily-loss Elite Access variant isn't modeled separately.",
+  },
+  {
+    firm: "Tradeify",
+    program: "Select Evaluation",
+    confidence: "high",
+    accounts: [
+      { size: 25000, target: 1500, drawdown: 1000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 109, activationFee: 0, payoutThreshold: 1250, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 50000, target: 3000, drawdown: 2000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 165, activationFee: 0, payoutThreshold: 1500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 100000, target: 6000, drawdown: 3000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 265, activationFee: 0, payoutThreshold: 2500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 150000, target: 9000, drawdown: 4500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 369, activationFee: 0, payoutThreshold: 3500, splitTier1Cap: 0, splitTier1Rate: 0.9, splitBaseRate: 0.9, lifetimePayouts: null },
+    ],
+    note: "Select Evaluation, no daily loss limit, 90/10 split confirmed on Tradeify's own help center. Its real payout structure (Select Flex/Daily — a minimum $ per winning day, paid out on a cycle) is approximated here as a simple payout threshold; payout caps also dropped for accounts bought after Sep 2026.",
+  },
+  {
+    firm: "E8 Futures",
+    program: "E8 Signature",
+    confidence: "medium",
+    accounts: [
+      { size: 25000, target: 1500, drawdown: 1000, dailyLoss: 500, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 120, activationFee: 0, payoutThreshold: 1250, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 50000, target: 3000, drawdown: 2000, dailyLoss: 1000, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 175, activationFee: 0, payoutThreshold: 1500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 100000, target: 6000, drawdown: 3000, dailyLoss: 2000, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 265, activationFee: 0, payoutThreshold: 2500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 150000, target: 9000, drawdown: 4500, dailyLoss: 3000, dailyLossHard: false, lockAtBreakeven: true, feeType: "one-time", feeOneTime: 370, activationFee: 0, payoutThreshold: 3500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+    ],
+    note: "E8 Signature — its \"EOD Dynamic\" drawdown locks static once cumulative closed profit clears the drawdown amount, approximated here as a breakeven lock. Daily Pause (a soft 2% intraday check, not an account-failing limit) is modeled as non-fatal. Split is 80/20, the lowest of the firms listed here. Eval fee shown is list price cross-referenced from third-party trackers (E8 also runs a standing ~25% site discount not modeled as a promo code) — confirm at checkout. Doesn't model E8's 40%-best-day consistency rule or its exact payout-cap schedule.",
+  },
+  {
+    firm: "Take Profit Trader",
+    program: "PRO Trading Test",
+    confidence: "low",
+    accounts: [
+      { size: 25000, target: 1500, drawdown: 1500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "subscription", feeMonthly: 150, activationFee: 130, payoutThreshold: 1250, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 50000, target: 3000, drawdown: 2000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "subscription", feeMonthly: 170, activationFee: 130, payoutThreshold: 1500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 100000, target: 6000, drawdown: 3000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "subscription", feeMonthly: 245, activationFee: 130, payoutThreshold: 2500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+      { size: 150000, target: 9000, drawdown: 4500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: true, feeType: "subscription", feeMonthly: 330, activationFee: 130, payoutThreshold: 3500, splitTier1Cap: 0, splitTier1Rate: 0.8, splitBaseRate: 0.8, lifetimePayouts: null },
+    ],
+    note: "Unusual among this list: the Trading Test itself is billed as a recurring monthly subscription (confirmed on Take Profit Trader's own help center), not a one-time fee — modeled that way, so a slower pass costs more here than at a flat-fee firm. No daily loss limit as of Jan 2025. Its funded PRO account switches to intraday (not EOD) trailing drawdown, which isn't modeled — real funded-phase risk is understated. Modeled at the PRO tier's 80/20 split (PRO+ funded accounts can reach 90/10). Monthly fee figures are third-party-sourced, not confirmed directly from the firm's own pricing page — confirm before funding.",
+  },
+  {
+    firm: "Bulenox",
+    program: "Qualification / Fast Track / Momentum",
+    confidence: "medium",
+    accounts: [
+      { size: 25000, target: 1500, drawdown: 1500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: false, feeType: "one-time", feeOneTime: 145, activationFee: 0, payoutThreshold: 1250, splitTier1Cap: 10000, splitTier1Rate: 1.0, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 50000, target: 3000, drawdown: 2500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: false, feeType: "one-time", feeOneTime: 175, activationFee: 0, payoutThreshold: 1500, splitTier1Cap: 10000, splitTier1Rate: 1.0, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 100000, target: 6000, drawdown: 3000, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: false, feeType: "one-time", feeOneTime: 215, activationFee: 0, payoutThreshold: 2500, splitTier1Cap: 10000, splitTier1Rate: 1.0, splitBaseRate: 0.9, lifetimePayouts: null },
+      { size: 150000, target: 9000, drawdown: 4500, dailyLoss: null, dailyLossHard: false, lockAtBreakeven: false, feeType: "one-time", feeOneTime: 325, activationFee: 0, payoutThreshold: 3500, splitTier1Cap: 10000, splitTier1Rate: 1.0, splitBaseRate: 0.9, lifetimePayouts: null },
+    ],
+    note: "Split is 100% of the first $10,000 profit, then 90/10 beyond that — matches Bulenox's own published rule and is modeled exactly. Activation is bundled into the eval fee (no separate charge). Traders can choose real-time or EOD trailing drawdown at signup; EOD (the more forgiving option) is modeled here. Doesn't model the first-3-payouts-capped-then-lifted schedule, or the 10-trading-day/40%-best-day payout gate — both approximated as a flat payout threshold.",
+  },
 ];
 
 const TRADING_DAYS_PER_MONTH = 20;

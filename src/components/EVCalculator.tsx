@@ -258,8 +258,9 @@ export function EVCalculator() {
 
           <div className="ev-swap-note">
             <b>Firm list note:</b> FundedElite runs forex/CFD (MT5) accounts, not real futures evaluations, so it isn't in
-            this ranking — including it would have meant faking futures numbers it doesn't have. Take Profit Trader and
-            Bulenox are both solid, currently-active options for the 7th slot.
+            this ranking — including it would have meant faking futures numbers it doesn't have. E8&apos;s general brand
+            (e8markets.com) is also mostly forex/CFD; the E8 Futures row here is modeled on their separate dedicated
+            futures product instead.
           </div>
 
           <div className="ev-method">
