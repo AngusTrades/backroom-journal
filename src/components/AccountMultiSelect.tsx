@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createAccountQuick } from "@/app/actions/accounts";
 
 type AccountOpt = { id: string; name: string; groupId: string | null; firm: string | null };
 type GroupOpt = { id: string; name: string };
@@ -31,16 +32,45 @@ export function AccountMultiSelect({
     Object.fromEntries((initialCheckedIds ?? []).map((id) => [id, true])),
   );
 
+  // Own local copy of the account list — same "+ New X…" pattern as
+  // PayoutAccountSelect on the Budgeting page: a member journaling a trade
+  // on an account they haven't set up yet can add it right here (via
+  // createAccountQuick) instead of losing everything they've typed so far
+  // on a trip to the Accounts page first. New accounts have no groupId, so
+  // they land in the Ungrouped bucket below like any other ungrouped
+  // account.
+  const [items, setItems] = useState(accounts);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newFirm, setNewFirm] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  function handleAddAccount() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    startTransition(async () => {
+      const row = await createAccountQuick(trimmed, newFirm);
+      if (row) {
+        const opt: AccountOpt = { id: row.id, name: row.name, groupId: row.groupId, firm: row.firm };
+        setItems((prev) => (prev.some((i) => i.id === opt.id) ? prev : [...prev, opt]));
+        setChecked((prev) => ({ ...prev, [opt.id]: true }));
+        setNewName("");
+        setNewFirm("");
+        setAdding(false);
+      }
+    });
+  }
+
   const byGroup = useMemo(() => {
     const map = new Map<string, AccountOpt[]>();
-    for (const a of accounts) {
+    for (const a of items) {
       const key = a.groupId && groups.some((g) => g.id === a.groupId) ? a.groupId : "__ungrouped";
       const list = map.get(key);
       if (list) list.push(a);
       else map.set(key, [a]);
     }
     return map;
-  }, [accounts, groups]);
+  }, [items, groups]);
 
   function toggleOne(id: string, value: boolean) {
     setChecked((prev) => ({ ...prev, [id]: value }));
@@ -56,45 +86,129 @@ export function AccountMultiSelect({
 
   const checkedCount = Object.values(checked).filter(Boolean).length;
 
-  if (accounts.length === 0) {
-    return <div className="sub">No accounts yet — add one on the Accounts page first.</div>;
-  }
-
   return (
     <div>
-      <div
-        className="rounded-[9px] border p-3 max-h-[280px] overflow-auto"
-        style={{ borderColor: "var(--border-soft)", background: "var(--surface-2)" }}
-      >
-        {groups.map((g) => {
-          const members = byGroup.get(g.id) ?? [];
-          if (members.length === 0) return null;
-          return (
+      {items.length > 0 && (
+        <div
+          className="rounded-[9px] border p-3 max-h-[280px] overflow-auto"
+          style={{ borderColor: "var(--border-soft)", background: "var(--surface-2)" }}
+        >
+          {groups.map((g) => {
+            const members = byGroup.get(g.id) ?? [];
+            if (members.length === 0) return null;
+            return (
+              <GroupBlock
+                key={g.id}
+                title={g.name}
+                accounts={members}
+                checked={checked}
+                onToggleOne={toggleOne}
+                onToggleAll={(value) => toggleGroup(members.map((a) => a.id), value)}
+              />
+            );
+          })}
+          {(byGroup.get("__ungrouped") ?? []).length > 0 && (
             <GroupBlock
-              key={g.id}
-              title={g.name}
-              accounts={members}
+              title={groups.length > 0 ? "Ungrouped" : null}
+              accounts={byGroup.get("__ungrouped") ?? []}
               checked={checked}
               onToggleOne={toggleOne}
-              onToggleAll={(value) => toggleGroup(members.map((a) => a.id), value)}
+              onToggleAll={(value) => toggleGroup((byGroup.get("__ungrouped") ?? []).map((a) => a.id), value)}
             />
-          );
-        })}
-        {(byGroup.get("__ungrouped") ?? []).length > 0 && (
-          <GroupBlock
-            title={groups.length > 0 ? "Ungrouped" : null}
-            accounts={byGroup.get("__ungrouped") ?? []}
-            checked={checked}
-            onToggleOne={toggleOne}
-            onToggleAll={(value) => toggleGroup((byGroup.get("__ungrouped") ?? []).map((a) => a.id), value)}
+          )}
+        </div>
+      )}
+
+      {items.length === 0 && !adding && (
+        <div className="sub">No accounts yet — add one below, or on the Accounts page for the fuller setup.</div>
+      )}
+
+      {items.length > 0 && (
+        <div className="sub" style={{ marginTop: 4 }}>
+          {checkedCount === 0
+            ? "Select one or more accounts — check a whole group to journal this trade on every account in it."
+            : `${checkedCount} account${checkedCount === 1 ? "" : "s"} selected — this trade will be logged on each one.`}
+        </div>
+      )}
+
+      {adding ? (
+        <div
+          className="mt-2 flex flex-col gap-1.5 rounded-[9px] border p-2.5"
+          style={{ borderColor: "var(--border-soft)", background: "var(--surface-2)" }}
+        >
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddAccount();
+              }
+            }}
+            placeholder="Account name — e.g. Apex 50k #2"
+            autoFocus
+            className="min-w-0 flex-1"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 7,
+              color: "var(--text)",
+              fontFamily: "var(--font-data)",
+              fontSize: 13,
+              padding: "8px 10px",
+              outline: "none",
+            }}
           />
-        )}
-      </div>
-      <div className="sub" style={{ marginTop: 4 }}>
-        {checkedCount === 0
-          ? "Select one or more accounts — check a whole group to journal this trade on every account in it."
-          : `${checkedCount} account${checkedCount === 1 ? "" : "s"} selected — this trade will be logged on each one.`}
-      </div>
+          <input
+            type="text"
+            value={newFirm}
+            onChange={(e) => setNewFirm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddAccount();
+              }
+            }}
+            placeholder="Firm — e.g. Apex (optional)"
+            className="min-w-0 flex-1"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 7,
+              color: "var(--text)",
+              fontFamily: "var(--font-data)",
+              fontSize: 13,
+              padding: "8px 10px",
+              outline: "none",
+            }}
+          />
+          <div className="flex gap-1.5">
+            <button type="button" className="btn btn-ghost" disabled={pending || !newName.trim()} onClick={handleAddAccount}>
+              Add
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setAdding(false);
+                setNewName("");
+                setNewFirm("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="sub" style={{ fontSize: 11 }}>
+            Created as a Prop Firm account, checked and ready to log this trade on — set its size, status, or group
+            later from Accounts if you want the fuller picture there.
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="btn btn-ghost mt-2" onClick={() => setAdding(true)}>
+          + New account…
+        </button>
+      )}
     </div>
   );
 }
