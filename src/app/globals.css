@@ -1571,7 +1571,7 @@ td.ev-fee-cell {
    .cal-grid-weekly — the News page reuses plain .cal-grid at 7 columns and
    is untouched by it). */
 .cal-grid.cal-grid-weekly {
-  grid-template-columns: repeat(7, 1fr) minmax(84px, 0.9fr);
+  grid-template-columns: repeat(5, 1fr) minmax(84px, 0.9fr);
 }
 .cal-week-summary {
   display: flex;
@@ -1914,7 +1914,7 @@ html[data-privacy="on"] .money::after {
     min-width: 560px;
   }
   .cal-scroll-wrap > .cal-grid.cal-grid-weekly {
-    min-width: 660px;
+    min-width: 500px;
   }
   .amt-full {
     display: none;

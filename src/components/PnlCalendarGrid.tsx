@@ -53,13 +53,12 @@ type WeekSummary = {
   isCurrent: boolean;
 };
 
-// One summary per row of the grid (always full 7-day weeks — see
-// calendar/page.tsx, which builds `days` from startOfWeek/endOfWeek). Each
+// One summary per row of the grid (always full Mon–Fri weeks — see
+// calendar/page.tsx; weekend activity is already folded into Fri/Mon). Each
 // week is labeled "Week N", counting from 1 and resetting whenever the row
 // crosses into a new month — decided by the month of that row's Thursday,
 // the same "which month does this week belong to" convention ISO week
-// numbering uses, since the Thursday is guaranteed to fall in whichever
-// month has 4+ of the row's 7 days.
+// numbering uses (Thursday is index 3 of a Mon–Fri row).
 function buildWeekSummaries(
   days: CalDay[],
   byDay: Record<string, CalDayInfo>,
@@ -68,8 +67,8 @@ function buildWeekSummaries(
   const weeks: WeekSummary[] = [];
   const weekOfMonthCounts = new Map<string, number>();
 
-  for (let i = 0; i < days.length; i += 7) {
-    const chunk = days.slice(i, i + 7);
+  for (let i = 0; i < days.length; i += 5) {
+    const chunk = days.slice(i, i + 5);
     if (chunk.length === 0) continue;
     const thursday = chunk[3] ?? chunk[chunk.length - 1];
     const monthKey = thursday.key.slice(0, 7); // "yyyy-MM"
@@ -253,13 +252,13 @@ export function PnlCalendarGrid({
               </div>,
             );
 
-            // End of a row (Sunday, every 7th cell) — drop in that week's
+            // End of a row (Friday, every 5th cell) — drop in that week's
             // TopstepX-style rollup: total P&L (or net R with no $ logged,
             // same fallback the day cells and the month KPI use), trade
             // count, and — in the same accent color the per-day payout line
             // above uses — how much came out in payouts that week.
-            if ((idx + 1) % 7 === 0) {
-              const week = weeks[Math.floor(idx / 7)];
+            if ((idx + 1) % 5 === 0) {
+              const week = weeks[Math.floor(idx / 5)];
               if (week) {
                 const weekOutcome = week.hasPnlData
                   ? week.pnlUsd > 0

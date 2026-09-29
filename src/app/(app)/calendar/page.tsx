@@ -23,13 +23,16 @@ import {
 import { PageHead } from "@/components/PageHead";
 import { requireUser } from "@/lib/auth";
 import { PnlCalendarGrid, type CalDayInfo, type CalNewsEvent } from "@/components/PnlCalendarGrid";
+import { foldWeekends, isWeekend } from "@/lib/tradingDays";
 import { PersistedFilterPills } from "@/components/PersistedFilterPills";
 import { nyDateKey } from "@/lib/newsTime";
 
 export const dynamic = "force-dynamic";
 
 const ACCOUNTS_COOKIE = "backroom-cal-accounts";
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Trading days only. Weekend activity is folded in: Saturday → Friday,
+// Sunday → Monday (see src/lib/tradingDays.ts).
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 function monthParam(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -69,32 +72,48 @@ export default async function CalendarPage({
 
   const gridStart = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 });
   const gridEndDay = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
-  const days = eachDayOfInterval({ start: gridStart, end: gridEndDay });
+  // Mon–Fri only, and drop any row with no weekday in this month (e.g. a
+  // month that starts on a Saturday would otherwise open with an empty row).
+  const weekdays = eachDayOfInterval({ start: gridStart, end: gridEndDay }).filter((d) => !isWeekend(d));
+  const days: Date[] = [];
+  for (let i = 0; i < weekdays.length; i += 5) {
+    const row = weekdays.slice(i, i + 5);
+    if (row.some((d) => isSameMonth(d, monthDate))) days.push(...row);
+  }
+  // Fetch from the Sunday before the grid: it folds into the grid's first Monday.
+  const fetchStart = new Date(gridStart);
+  fetchStart.setDate(fetchStart.getDate() - 1);
   const rangeEnd = new Date(gridEndDay);
   rangeEnd.setDate(rangeEnd.getDate() + 1);
   rangeEnd.setHours(0, 0, 0, 0);
 
   const [rows, payoutRows, newsEvents] =
     selectedIds.length === 0
-      ? [[], [], await getNewsEventsForRange(gridStart, rangeEnd)]
+      ? [[], [], await getNewsEventsForRange(fetchStart, rangeEnd)]
       : await Promise.all([
-          getPnlCalendarTrades(gridStart, rangeEnd, selectedIds),
-          getPnlCalendarPayouts(gridStart, rangeEnd, selectedIds),
-          getNewsEventsForRange(gridStart, rangeEnd),
+          getPnlCalendarTrades(fetchStart, rangeEnd, selectedIds),
+          getPnlCalendarPayouts(fetchStart, rangeEnd, selectedIds),
+          getNewsEventsForRange(fetchStart, rangeEnd),
         ]);
-  const byDay = groupTradesByDay(rows);
-  const payoutByDay = groupPayoutsByDay(payoutRows);
+  const byDay = foldWeekends(groupTradesByDay(rows), (a, b) => ({
+    tradeCount: a.tradeCount + b.tradeCount,
+    pnlUsd: a.pnlUsd + b.pnlUsd,
+    hasPnlData: a.hasPnlData || b.hasPnlData,
+    totalRr: a.totalRr + b.totalRr,
+  }));
+  const payoutByDay = foldWeekends(groupPayoutsByDay(payoutRows), (a, b) => a + b);
 
   // Bucketed by New York calendar day, same as the News page — see
   // src/lib/newsTime.ts.
-  const newsByDay = new Map<string, CalNewsEvent[]>();
+  const newsByDayRaw = new Map<string, CalNewsEvent[]>();
   for (const ev of newsEvents) {
     const key = nyDateKey(ev.date, ev.timeMinutes);
-    const list = newsByDay.get(key);
+    const list = newsByDayRaw.get(key);
     const entry = { impact: ev.impact, title: ev.title, country: ev.country, date: ev.date, timeMinutes: ev.timeMinutes, time: ev.time };
     if (list) list.push(entry);
-    else newsByDay.set(key, [entry]);
+    else newsByDayRaw.set(key, [entry]);
   }
+  const newsByDay = foldWeekends(newsByDayRaw, (a, b) => [...a, ...b]);
 
   let monthPnl = 0;
   let monthHasPnlData = false;
