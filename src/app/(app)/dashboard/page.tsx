@@ -23,10 +23,13 @@ import { EquityCurve } from "@/components/EquityCurve";
 import { DeleteTradeButton } from "@/components/DeleteTradeButton";
 import { PnlCalendarGrid, type CalDayInfo } from "@/components/PnlCalendarGrid";
 import { requireUser } from "@/lib/auth";
+import { foldWeekends, isWeekend } from "@/lib/tradingDays";
 
 export const dynamic = "force-dynamic";
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Trading days only — same Mon–Fri grid as the PnL Calendar page, with
+// weekend activity folded into the neighbouring trading day.
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 function formatDate(d: Date) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -49,7 +52,15 @@ export default async function DashboardPage() {
   const monthDate = startOfMonth(new Date());
   const gridStart = startOfWeek(monthDate, { weekStartsOn: 1 });
   const gridEndDay = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 });
-  const days = eachDayOfInterval({ start: gridStart, end: gridEndDay });
+  const weekdays = eachDayOfInterval({ start: gridStart, end: gridEndDay }).filter((d) => !isWeekend(d));
+  const days: Date[] = [];
+  for (let i = 0; i < weekdays.length; i += 5) {
+    const row = weekdays.slice(i, i + 5);
+    if (row.some((d) => isSameMonth(d, monthDate))) days.push(...row);
+  }
+  // Fetch from the Sunday before the grid: it folds into the first Monday.
+  const fetchStart = new Date(gridStart);
+  fetchStart.setDate(fetchStart.getDate() - 1);
   const rangeEnd = new Date(gridEndDay);
   rangeEnd.setDate(rangeEnd.getDate() + 1);
   rangeEnd.setHours(0, 0, 0, 0);
@@ -58,11 +69,16 @@ export default async function DashboardPage() {
     accountIds.length === 0
       ? [[], []]
       : await Promise.all([
-          getPnlCalendarTrades(gridStart, rangeEnd, accountIds),
-          getPnlCalendarPayouts(gridStart, rangeEnd, accountIds),
+          getPnlCalendarTrades(fetchStart, rangeEnd, accountIds),
+          getPnlCalendarPayouts(fetchStart, rangeEnd, accountIds),
         ]);
-  const byDay = groupTradesByDay(tradeRows);
-  const payoutByDay = groupPayoutsByDay(payoutRows);
+  const byDay = foldWeekends(groupTradesByDay(tradeRows), (a, b) => ({
+    tradeCount: a.tradeCount + b.tradeCount,
+    pnlUsd: a.pnlUsd + b.pnlUsd,
+    hasPnlData: a.hasPnlData || b.hasPnlData,
+    totalRr: a.totalRr + b.totalRr,
+  }));
+  const payoutByDay = foldWeekends(groupPayoutsByDay(payoutRows), (a, b) => a + b);
 
   const netR = analytics.equityCurve.at(-1)?.cumulative ?? 0;
   const recent = recentTrades.slice(0, 6);
