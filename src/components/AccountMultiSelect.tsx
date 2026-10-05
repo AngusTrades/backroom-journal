@@ -253,15 +253,23 @@ function GroupBlock({
           </span>
         </label>
       )}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1" style={{ paddingLeft: title ? 20 : 0 }}>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-x-3 md:gap-y-1" style={{ paddingLeft: title ? 20 : 0 }}>
         {accounts.map((a) => (
-          <label key={a.id} className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--text-soft)" }}>
+          <label
+            key={a.id}
+            className="flex min-h-[44px] items-center gap-3 rounded-[10px] border px-3.5 text-[13px] md:min-h-0 md:gap-1.5 md:rounded-none md:border-0 md:px-0 md:text-[12px]"
+            style={{
+              color: "var(--text-soft)",
+              borderColor: checked[a.id] ? "var(--accent)" : "var(--border-soft)",
+            }}
+          >
             <input
               type="checkbox"
               name="accountIds"
               value={a.id}
               checked={!!checked[a.id]}
               onChange={(e) => onToggleOne(a.id, e.target.checked)}
+              className="h-5 w-5 flex-none md:h-auto md:w-auto"
             />
             <span className="truncate">
               {a.name}

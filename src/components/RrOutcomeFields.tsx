@@ -65,12 +65,41 @@ export function RrOutcomeFields({
         />
       </div>
       <div className="field">
-        <label htmlFor="outcome">Outcome</label>
-        <select id="outcome" name="outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as "win" | "loss" | "be")}>
-          <option value="win">Win</option>
-          <option value="loss">Loss</option>
-          <option value="be">Break-even</option>
-        </select>
+        <label id="outcome-label">Outcome</label>
+        {/* Same submitted field as the old <select> — three tap-sized buttons
+            instead, so it's one tap on a phone rather than a native picker. */}
+        <input type="hidden" name="outcome" value={outcome} />
+        <div role="group" aria-labelledby="outcome-label" className="grid grid-cols-3 gap-2">
+          {(
+            [
+              ["win", "Win", "var(--good)"],
+              ["loss", "Loss", "var(--bad)"],
+              ["be", "B/E", "var(--text-soft)"],
+            ] as const
+          ).map(([value, label, color]) => {
+            const active = outcome === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setOutcome(value)}
+                style={{
+                  minHeight: 44,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: `1px solid ${active ? color : "var(--border)"}`,
+                  background: active ? "var(--surface-2)" : "transparent",
+                  color: active ? color : "var(--text-mute)",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </>
   );
