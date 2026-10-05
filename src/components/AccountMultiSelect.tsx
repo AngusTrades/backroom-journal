@@ -273,7 +273,7 @@ function GroupBlock({
             />
             <span className="truncate">
               {a.name}
-              {a.firm ? <span className="sub"> · {a.firm}</span> : null}
+              {a.firm && a.firm.trim().toLowerCase() !== a.name.trim().toLowerCase() ? <span className="sub"> · {a.firm}</span> : null}
             </span>
           </label>
         ))}
