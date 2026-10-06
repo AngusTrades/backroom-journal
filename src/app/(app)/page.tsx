@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTradesWithDetails } from "@/db/queries";
 import { PageHead } from "@/components/PageHead";
 import { DeleteTradeButton } from "@/components/DeleteTradeButton";
+import { TradeCards } from "@/components/TradeCards";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ export default async function JournalPage() {
         </div>
       )}
 
-      <div className="kpi-row">
+      <div className={`kpi-row${hasPnlData ? " kpi-row-5" : ""}`}>
         <div className="kpi">
           <div className="k">Total Trades</div>
           <div className="v">{totalTrades}</div>
@@ -83,77 +84,19 @@ export default async function JournalPage() {
 
       {/* Phones: one card per trade (the 11-column table below is unreadable
           at 390px and forces sideways scrolling). md+ keeps the table. */}
-      <div className="flex flex-col gap-3 md:hidden">
-        {tradeRows.length === 0 && (
-          <div className="card card-pad" style={{ textAlign: "center", color: "var(--text-mute)" }}>
-            No trades logged yet —{" "}
-            <Link href="/add-trade" style={{ color: "var(--accent-strong)" }}>
-              add your first one
-            </Link>
-            .
-          </div>
-        )}
-        {tradeRows.map((t) => {
-          const tone = t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : "";
-          return (
-            <div key={t.id} className="card" style={{ padding: "16px 18px" }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                <div className="min-w-0">
-                  <div className="truncate" style={{ fontWeight: 600, fontSize: 14 }}>
-                    <span className="mono">{t.pair?.symbol}</span>
-                    {t.account?.name ? <span style={{ color: "var(--text-mute)", fontWeight: 400 }}> · {t.account.name}</span> : null}
-                  </div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>
-                    {formatDate(t.date)}
-                  </div>
-                </div>
-                <span className={`badge ${t.outcome}`}>
-                  {t.outcome === "win" ? "WIN" : t.outcome === "loss" ? "LOSS" : "B/E"}
-                </span>
-              </div>
-              <div
-                className="grid grid-cols-2 gap-3"
-                style={{ padding: "12px 0", borderTop: "1px solid var(--border-soft)", borderBottom: "1px solid var(--border-soft)" }}
-              >
-                <div>
-                  <div className="k" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-mute)", marginBottom: 4 }}>
-                    R:R
-                  </div>
-                  <div className={`mono pnl ${tone}`} style={{ fontSize: 19, fontWeight: 600 }}>
-                    {t.outcome === "loss" ? "−" : ""}
-                    {Number(t.rr).toFixed(2)}R
-                  </div>
-                </div>
-                <div>
-                  <div className="k" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-mute)", marginBottom: 4 }}>
-                    P&amp;L
-                  </div>
-                  <div
-                    className={`mono pnl money ${t.pnlUsd !== null ? (Number(t.pnlUsd) >= 0 ? "good" : "bad") : ""}`}
-                    style={{ fontSize: 19, fontWeight: 600 }}
-                  >
-                    {t.pnlUsd !== null
-                      ? `${Number(t.pnlUsd) >= 0 ? "+" : "−"}$${Math.abs(Number(t.pnlUsd)).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                      : "—"}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-end" style={{ paddingTop: 4, gap: 2 }}>
-                {t.chartImageUrl && (
-                  <a href={t.chartImageUrl} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center px-3" style={{ minHeight: 44 }}>
-                    Chart
-                  </a>
-                )}
-                <Link href={`/edit-trade/${t.id}`} className="link inline-flex items-center px-3" style={{ minHeight: 44 }}>
-                  Edit
-                </Link>
-                <span className="inline-flex items-center px-3" style={{ minHeight: 44 }}>
-                  <DeleteTradeButton id={t.id} />
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="md:hidden">
+        <TradeCards
+          trades={tradeRows}
+          emptyText={
+            <>
+              No trades logged yet —{" "}
+              <Link href="/add-trade" style={{ color: "var(--accent-strong)" }}>
+                add your first one
+              </Link>
+              .
+            </>
+          }
+        />
       </div>
 
       <div className="table-wrap hidden md:block">

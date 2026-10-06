@@ -52,16 +52,16 @@ export function EntryModelPicker({
       <input type="hidden" name="entryModelId" value={selected} />
 
       <div
-        className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-[9px] border p-3 max-h-[160px] overflow-auto"
+        className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5 rounded-[9px] border p-3 max-h-[160px] overflow-auto"
         style={{ borderColor: "var(--border-soft)", background: "var(--surface-2)" }}
       >
         {items.length === 0 && (
-          <div className="col-span-2 py-2 text-[12px]" style={{ color: "var(--text-mute)" }}>
+          <div className="col-span-full py-2 text-[12px]" style={{ color: "var(--text-mute)" }}>
             No entry models yet — add your first one below.
           </div>
         )}
         {items.map((e) => (
-          <div key={e.id} className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--text-soft)" }}>
+          <div key={e.id} className="flex min-h-[40px] items-center gap-1.5 text-[12px] md:min-h-0" style={{ color: "var(--text-soft)" }}>
             <label className="flex min-w-0 flex-1 items-center gap-1.5">
               <input
                 type="radio"
@@ -76,7 +76,7 @@ export function EntryModelPicker({
               type="button"
               onClick={() => handleRemove(e.id)}
               aria-label={`Remove ${e.name}`}
-              className="flex-none text-[13px] leading-none"
+              className="flex h-9 w-9 flex-none items-center justify-center text-[15px] leading-none md:h-auto md:w-auto md:text-[13px]"
               style={{ color: "var(--text-mute)" }}
             >
               ×

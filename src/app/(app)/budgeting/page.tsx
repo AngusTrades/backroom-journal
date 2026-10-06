@@ -338,7 +338,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="board">
-        <div className="card no-print">
+        <div className="card card-pad no-print">
           <h3>Filing Region</h3>
           <form action={updateTaxProfile} className="flex flex-col gap-3">
             <div className="field">
@@ -423,7 +423,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
         </div>
 
         <div className="main-col">
-          <div className="card setaside-card no-print">
+          <div className="card card-pad setaside-card no-print">
             <h3>Set-Aside Progress</h3>
             <div className="setaside-row">
               <div className="setaside-track">

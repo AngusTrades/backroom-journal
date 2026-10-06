@@ -47,7 +47,7 @@ export function TaxEntryForm({ kind, initialCategories }: { kind: "income" | "ex
   const idPrefix = `tax-${kind}`;
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-4">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
       <input type="hidden" name="kind" value={kind} />
       <div className="field">
         <label htmlFor={`${idPrefix}-date`}>Date</label>
@@ -95,11 +95,11 @@ export function TaxEntryForm({ kind, initialCategories }: { kind: "income" | "ex
         />
       </div>
       {state.error && (
-        <div className="form-error md:col-span-4" style={{ marginBottom: 0 }}>
+        <div className="form-error md:col-span-2" style={{ marginBottom: 0 }}>
           {state.error}
         </div>
       )}
-      <div className="field md:col-span-4 flex items-end">
+      <div className="field md:col-span-2 flex items-end">
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? "Saving…" : kind === "income" ? "+ Log Income" : "+ Log Expense"}
         </button>

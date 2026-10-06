@@ -1839,7 +1839,12 @@ html[data-privacy="on"] .money::after {
   .kpi-row-6,
   .kpi-row-5,
   .kpi-row-3 {
-    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* An odd last tile would otherwise sit alone at half width with a hole
+     next to it — let it span the full row instead. */
+  .kpi-row > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
   .kpi .v {
     font-size: 17px;
@@ -1913,8 +1918,44 @@ html[data-privacy="on"] .money::after {
   .cal-scroll-wrap > .cal-grid {
     min-width: 560px;
   }
+  /* Mon–Fri + week-total grid is only 6 columns, so it fits a phone without
+     sideways scrolling once the cells are tightened up. */
   .cal-scroll-wrap > .cal-grid.cal-grid-weekly {
-    min-width: 500px;
+    min-width: 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(50px, 0.9fr);
+  }
+  .cal-grid-weekly .cal-day {
+    min-height: 62px;
+    padding: 5px 4px;
+    gap: 3px;
+    border-radius: 7px;
+  }
+  .cal-grid-weekly .cal-week-summary {
+    min-height: 62px;
+    padding: 5px 2px;
+    border-radius: 7px;
+  }
+  .cal-grid-weekly .cal-amt {
+    font-size: 10px;
+    letter-spacing: -0.03em;
+  }
+  .cal-grid-weekly .cal-week-total {
+    font-size: 10.5px;
+    letter-spacing: -0.03em;
+  }
+  .cal-grid-weekly .cal-week-label {
+    font-size: 8px;
+  }
+  .cal-grid-weekly .cal-payout {
+    font-size: 8px;
+    letter-spacing: 0;
+  }
+  .cal-grid-weekly .cal-count {
+    font-size: 9px;
+  }
+  .cal-legend {
+    flex-wrap: wrap;
+    gap: 8px 14px;
   }
   .amt-full {
     display: none;

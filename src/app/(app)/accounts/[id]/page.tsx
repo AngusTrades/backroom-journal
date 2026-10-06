@@ -6,6 +6,7 @@ import { AccountStatusControl } from "@/components/AccountStatusControl";
 import { AccountGroupControl } from "@/components/AccountGroupControl";
 import { DeleteAccountButton } from "@/components/DeleteAccountButton";
 import { DeleteTradeButton } from "@/components/DeleteTradeButton";
+import { TradeCards } from "@/components/TradeCards";
 import { DeletePayoutButton } from "@/components/DeletePayoutButton";
 import { createPayout } from "@/app/actions/tax";
 import { requireUser } from "@/lib/auth";
@@ -126,7 +127,15 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <h3 style={{ marginBottom: 10 }}>Trades</h3>
-      <div className="table-wrap" style={{ marginBottom: payoutRows.length > 0 ? 20 : 0 }}>
+      <div className="md:hidden" style={{ marginBottom: payoutRows.length > 0 ? 20 : 0 }}>
+        <TradeCards
+          trades={tradeRows}
+          showAccount={false}
+          returnTo={`/accounts/${account.id}`}
+          emptyText="No trades logged on this account yet."
+        />
+      </div>
+      <div className="table-wrap hidden md:block" style={{ marginBottom: payoutRows.length > 0 ? 20 : 0 }}>
         <table>
           <thead>
             <tr>

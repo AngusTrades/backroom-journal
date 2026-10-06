@@ -71,7 +71,7 @@ export function AddTradeForm({
   const [showInfo, setShowInfo] = useState(false);
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_1fr]">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 items-start gap-5 md:grid-cols-[1fr_1fr]">
       <div className="card p-5">
         <h3>Trade details</h3>
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
@@ -129,12 +129,12 @@ export function AddTradeForm({
         >
           {showInfo ? "Hide details" : "ⓘ R:R & P&L details"}
         </button>
-        <div className={showInfo ? "" : "hidden md:block"}>
-        <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
+        <div className={showInfo ? "mt-3" : "mt-3 hidden md:block"}>
+        <div className="sub" style={{ marginTop: 0, marginBottom: 6 }}>
           R:R is stored as a positive number and Outcome is what makes it count against you in Net R — but you can
           still just type e.g. -2 for a 2R loss and it&apos;ll flip Outcome to Loss and normalize the number for you.
         </div>
-        <div className="sub" style={{ marginTop: -6, marginBottom: 2 }}>
+        <div className="sub" style={{ marginTop: 0, marginBottom: 6 }}>
           Enter the real dollar result if you know it — it flows straight into this account&apos;s current balance and
           the PnL calendar. Leave it blank to keep tracking this trade in R only.
         </div>

@@ -22,6 +22,7 @@ import {
 import { PageHead } from "@/components/PageHead";
 import { EquityCurve } from "@/components/EquityCurve";
 import { DeleteTradeButton } from "@/components/DeleteTradeButton";
+import { TradeCards } from "@/components/TradeCards";
 import { PnlCalendarGrid, type CalDayInfo } from "@/components/PnlCalendarGrid";
 import { requireUser } from "@/lib/auth";
 import { foldWeekends, isWeekend } from "@/lib/tradingDays";
@@ -237,7 +238,11 @@ export default async function DashboardPage() {
             .
           </div>
         ) : (
-          <div className="table-wrap" style={{ marginTop: 8 }}>
+          <>
+          <div className="md:hidden" style={{ marginTop: 8 }}>
+            <TradeCards trades={recent} />
+          </div>
+          <div className="table-wrap hidden md:block" style={{ marginTop: 8 }}>
             <table>
               <thead>
                 <tr>
@@ -258,9 +263,17 @@ export default async function DashboardPage() {
                     <td>{t.account?.name}</td>
                     <td className="mono">{t.pair?.symbol}</td>
                     <td>{t.session?.name ?? "—"}</td>
-                    <td className={`num mono pnl ${t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
-                      {t.outcome === "loss" ? "−" : ""}
-                      {Number(t.rr).toFixed(2)}R
+                    <td className={`num mono pnl ${t.rr === null ? "" : t.outcome === "loss" ? "bad" : t.outcome === "win" ? "good" : ""}`}>
+                      {t.rr === null ? (
+                        <Link href={`/edit-trade/${t.id}`} className="badge needs">
+                          Add stop
+                        </Link>
+                      ) : (
+                        <>
+                          {t.outcome === "loss" ? "−" : ""}
+                          {Number(t.rr).toFixed(2)}R
+                        </>
+                      )}
                     </td>
                     <td className={`num mono pnl money ${t.pnlUsd !== null ? (Number(t.pnlUsd) >= 0 ? "good" : "bad") : ""}`}>
                       {t.pnlUsd !== null
@@ -283,6 +296,7 @@ export default async function DashboardPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
         <div style={{ marginTop: 10 }}>
           <Link href="/" className="link">

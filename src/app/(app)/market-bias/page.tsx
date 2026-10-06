@@ -156,7 +156,7 @@ export default async function MarketBiasPage({
             </button>
           </div>
         </form>
-        <div className="sub" style={{ marginTop: -4 }}>
+        <div className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
           Points moved: positive for a push up that session, negative for a dump down.
         </div>
       </div>
