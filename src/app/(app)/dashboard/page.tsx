@@ -10,6 +10,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import {
+  type Breakdown,
   getAnalytics,
   getFormOptions,
   getTradesWithDetails,
@@ -83,6 +84,19 @@ export default async function DashboardPage() {
   const netR = analytics.equityCurve.at(-1)?.cumulative ?? 0;
   const recent = recentTrades.slice(0, 6);
 
+  // "Best X" tiles under the equity curve — they fill the space the taller
+  // calendar card would otherwise leave empty, and answer "what's working"
+  // at a glance. Needs a few trades behind it so one lucky trade isn't crowned.
+  const bestOf = (rows: Breakdown[]) =>
+    rows.filter((r) => r.trades >= 3).sort((a, b) => b.winRate - a.winRate || b.trades - a.trades)[0];
+  const edge = [
+    { label: "Best setup", row: bestOf(analytics.bySetup) },
+    { label: "Best entry model", row: bestOf(analytics.byEntryModel) },
+    { label: "Best session", row: bestOf(analytics.bySession) },
+    { label: "Best pair", row: bestOf(analytics.byPair) },
+  ];
+  const avgRrLabel = `${analytics.avgRr >= 0 ? "+" : ""}${analytics.avgRr.toFixed(2)}R`;
+
   return (
     <div>
       <PageHead
@@ -126,11 +140,51 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid4">
-        <div className="card card-pad">
+        <div className="card card-pad flex flex-col">
           <h3>Equity Curve</h3>
           <div className="sub">Cumulative R across every logged trade.</div>
           <EquityCurve data={analytics.equityCurve} />
-          <div style={{ marginTop: 10 }}>
+
+          <div
+            className="grid grid-cols-2 gap-3"
+            style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border-soft)" }}
+          >
+            <div>
+              <div className="k" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-mute)", marginBottom: 4 }}>
+                Wins / Losses
+              </div>
+              <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>
+                <span className="good">{analytics.wins}</span>
+                <span style={{ color: "var(--text-mute)" }}> / </span>
+                <span className="bad">{analytics.losses}</span>
+              </div>
+            </div>
+            <div>
+              <div className="k" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-mute)", marginBottom: 4 }}>
+                Avg R:R
+              </div>
+              <div className={`mono ${analytics.avgRr >= 0 ? "good" : "bad"}`} style={{ fontSize: 16, fontWeight: 600 }}>
+                {avgRrLabel}
+              </div>
+            </div>
+            {edge.map((e) =>
+              e.row ? (
+                <div key={e.label} className="min-w-0">
+                  <div className="k" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-mute)", marginBottom: 4 }}>
+                    {e.label}
+                  </div>
+                  <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>
+                    {e.row.name}
+                  </div>
+                  <div className="mono" style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>
+                    {e.row.winRate.toFixed(0)}% win · {e.row.trades} trades
+                  </div>
+                </div>
+              ) : null,
+            )}
+          </div>
+
+          <div style={{ marginTop: "auto", paddingTop: 14 }}>
             <Link href="/analytics" className="link">
               View full analytics →
             </Link>
